@@ -6,5 +6,18 @@
 .claude/commands/
 .logs/
 
-# Beads local state
-.beads/
+# Beads local state (runtime files only — .beads/ itself is tracked for Gas Town)
+.beads/*.db
+.beads/*.db-journal
+.beads/*.sqlite3
+.beads/redirect
+.beads/daemon.*
+.beads/bd.sock
+.beads/last-touched
+.beads/.local_version
+.beads/sync-state.json
+.beads/export-state/
+.beads/sem/
+.beads/locks/
+.beads/.sync.lock
+.beads/sync_base.jsonl
