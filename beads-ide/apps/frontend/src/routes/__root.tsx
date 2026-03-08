@@ -221,11 +221,10 @@ function RootLayoutInner() {
 
   return (
     <>
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[9999] focus:px-4 focus:py-2 focus:bg-zinc-900 focus:text-white focus:border-2 focus:border-brand-500 focus:rounded focus:font-medium focus:no-underline"
-        onClick={(e) => {
-          e.preventDefault()
+      <button
+        type="button"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[9999] focus:px-4 focus:py-2 focus:bg-zinc-900 focus:text-white focus:border-2 focus:border-brand-500 focus:rounded focus:font-medium"
+        onClick={() => {
           const main = document.getElementById('main-content')
           if (main) {
             main.tabIndex = -1
@@ -235,7 +234,7 @@ function RootLayoutInner() {
         }}
       >
         Skip to main content
-      </a>
+      </button>
       <OfflineBanner />
       <AppShell
         sidebarContent={

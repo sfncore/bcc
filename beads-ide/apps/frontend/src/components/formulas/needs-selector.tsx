@@ -78,7 +78,7 @@ export function NeedsSelector({
   }
 
   return (
-    <div style={containerStyle} role="group" aria-label="Dependencies" aria-describedby={ariaDescribedBy}>
+    <fieldset style={containerStyle} aria-label="Dependencies" aria-describedby={ariaDescribedBy}>
       {availableIds.map((id) => {
         const isChecked = selectedSet.has(id)
         return (
@@ -107,6 +107,6 @@ export function NeedsSelector({
           </div>
         )
       })}
-    </div>
+    </fieldset>
   )
 }

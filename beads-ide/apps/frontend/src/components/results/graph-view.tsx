@@ -833,7 +833,7 @@ export function GraphView({
         onBeadClick(node.id)
       }
     },
-    [simplificationState.focusMode, onBeadClick, setSimplificationState]
+    [simplificationState.focusMode, onBeadClick]
   )
 
   const handleNodeDoubleClick = useCallback(
