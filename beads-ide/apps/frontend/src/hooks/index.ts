@@ -20,6 +20,7 @@ export {
   type OpenCodeSession,
 } from './use-opencode'
 export { useKeyboardTip } from './use-keyboard-tip'
+export { useConnectionState } from './use-connection-state'
 export {
   useWorkspaceConfig,
   type UseWorkspaceConfigReturn,

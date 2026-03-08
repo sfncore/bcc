@@ -22,7 +22,7 @@ import {
 import { OpenCodeTerminal } from '../components/opencode'
 import { UnsavedChangesModal } from '../components/ui/unsaved-changes-modal'
 import { useAnnounce, useFormulaDirty, useFormulaSave } from '../contexts'
-import { useCook, useFormulaContent, useSave, useSling } from '../hooks'
+import { useConnectionState, useCook, useFormulaContent, useSave, useSling } from '../hooks'
 import { useHotkey } from '../hooks/use-hotkeys'
 import {
   type FormulaParseError,
@@ -297,6 +297,9 @@ function FormulaPage() {
     debounceMs: 300,
   })
 
+  // Connection state - disable Pour/Sling when backend disconnected
+  const { isDisconnected } = useConnectionState()
+
   // Sling hook
   const { result: slingResult, isLoading: isSlinging, sling, reset: resetSling } = useSling()
 
@@ -538,8 +541,9 @@ function FormulaPage() {
             <button
               type="button"
               onClick={handleOpenPour}
-              style={pourButtonStyle}
-              title="Create beads locally"
+              style={isDisconnected ? { ...pourButtonStyle, opacity: 0.5, cursor: 'not-allowed' } : pourButtonStyle}
+              disabled={isDisconnected}
+              title={isDisconnected ? 'Backend connection required for this action' : 'Create beads locally'}
             >
               Pour ({result.steps.length})
             </button>
@@ -547,8 +551,9 @@ function FormulaPage() {
           <button
             type="button"
             onClick={handleOpenSling}
-            style={slingButtonStyle}
-            title="Dispatch to agent (Cmd+Shift+S)"
+            style={isDisconnected ? { ...slingButtonStyle, opacity: 0.5, cursor: 'not-allowed' } : slingButtonStyle}
+            disabled={isDisconnected}
+            title={isDisconnected ? 'Backend connection required for this action' : 'Dispatch to agent (Cmd+Shift+S)'}
           >
             Sling
           </button>

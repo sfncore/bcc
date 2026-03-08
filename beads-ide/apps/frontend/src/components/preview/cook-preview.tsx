@@ -6,6 +6,7 @@ import type { CookResult, FormulaVariable, PourResult } from '@beads-ide/shared'
  * Includes Pour button when proto beads are ready.
  */
 import { useCallback, useState } from 'react'
+import { useConnectionState } from '../../hooks/use-connection-state'
 import { useCook } from '../../hooks/use-cook'
 import { PourDialog } from '../formulas/pour-dialog'
 import { ProtoBeadList } from './proto-bead-list'
@@ -459,8 +460,11 @@ export function CookPreview({
     [onPourSuccess]
   )
 
-  // Determine if pour is available (cook succeeded with steps, no unbound vars)
+  const { isDisconnected } = useConnectionState()
+
+  // Determine if pour is available (cook succeeded with steps, no unbound vars, backend connected)
   const canPour =
+    !isDisconnected &&
     result?.ok === true &&
     (result.steps?.length ?? 0) > 0 &&
     (!result.unbound_vars || result.unbound_vars.length === 0)
