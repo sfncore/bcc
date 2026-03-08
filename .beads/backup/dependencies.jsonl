@@ -526,10 +526,12 @@
 {"created_at":"2026-03-08T18:20:24Z","created_by":"l0g1x","depends_on_id":"bcc-wisp-40k6x","issue_id":"bcc-zgc.19","type":"blocks"}
 {"created_at":"2026-03-08T17:50:06Z","created_by":"bcc/crew/audit","depends_on_id":"bcc-zgc","issue_id":"bcc-zgc.19","type":"parent-child"}
 {"created_at":"2026-03-08T17:49:03Z","created_by":"bcc/crew/audit","depends_on_id":"bcc-zgc","issue_id":"bcc-zgc.2","type":"parent-child"}
+{"created_at":"2026-03-08T20:15:31Z","created_by":"bcc/crew/audit","depends_on_id":"bcc-wisp-6maza","issue_id":"bcc-zgc.20","type":"blocks"}
 {"created_at":"2026-03-08T17:50:06Z","created_by":"bcc/crew/audit","depends_on_id":"bcc-zgc","issue_id":"bcc-zgc.20","type":"parent-child"}
 {"created_at":"2026-03-08T17:50:06Z","created_by":"bcc/crew/audit","depends_on_id":"bcc-zgc","issue_id":"bcc-zgc.21","type":"parent-child"}
 {"created_at":"2026-03-08T17:59:15Z","created_by":"l0g1x","depends_on_id":"bcc-wisp-vaf1e","issue_id":"bcc-zgc.3","type":"blocks"}
 {"created_at":"2026-03-08T17:49:04Z","created_by":"bcc/crew/audit","depends_on_id":"bcc-zgc","issue_id":"bcc-zgc.3","type":"parent-child"}
+{"created_at":"2026-03-08T20:15:03Z","created_by":"bcc/crew/audit","depends_on_id":"bcc-wisp-j1dty","issue_id":"bcc-zgc.4","type":"blocks"}
 {"created_at":"2026-03-08T17:49:04Z","created_by":"bcc/crew/audit","depends_on_id":"bcc-zgc","issue_id":"bcc-zgc.4","type":"parent-child"}
 {"created_at":"2026-03-08T17:49:15Z","created_by":"bcc/crew/audit","depends_on_id":"bcc-zgc","issue_id":"bcc-zgc.5","type":"parent-child"}
 {"created_at":"2026-03-08T17:50:12Z","created_by":"bcc/crew/audit","depends_on_id":"bcc-zgc.3","issue_id":"bcc-zgc.5","type":"blocks"}
