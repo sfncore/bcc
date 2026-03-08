@@ -22,7 +22,7 @@ import {
 import { OpenCodeTerminal } from '../components/opencode'
 import { UnsavedChangesModal } from '../components/ui/unsaved-changes-modal'
 import { useAnnounce, useFormulaDirty, useFormulaSave } from '../contexts'
-import { useCook, useFormulaContent, useSave, useSling } from '../hooks'
+import { useConnectionState, useCook, useFormulaContent, useSave, useSling } from '../hooks'
 import { useHotkey } from '../hooks/use-hotkeys'
 import {
   type FormulaParseError,
@@ -227,6 +227,9 @@ function FormulaPage() {
   // Track when unsaved changes are first detected
   const hasAnnouncedUnsavedRef = useRef(false)
 
+  // Ref for the step editor side panel to scroll into view on selection
+  const stepEditorPanelRef = useRef<HTMLDivElement>(null)
+
   // Compute isDirty from current content vs saved content
   const isDirty = tomlContent !== savedContent
 
@@ -296,6 +299,9 @@ function FormulaPage() {
     mode: 'compile',
     debounceMs: 300,
   })
+
+  // Connection state - disable Pour/Sling when backend disconnected
+  const { isDisconnected } = useConnectionState()
 
   // Sling hook
   const { result: slingResult, isLoading: isSlinging, sling, reset: resetSling } = useSling()
@@ -380,6 +386,13 @@ function FormulaPage() {
   // Determine if side panel should show (for visual/flow modes with selected step)
   // Outline mode uses inline editing, so no side panel needed
   const showSidePanel = (viewMode === 'visual' || viewMode === 'flow') && selectedStep
+
+  // Scroll step editor panel into view when it appears after step selection
+  useEffect(() => {
+    if (showSidePanel && stepEditorPanelRef.current) {
+      stepEditorPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [showSidePanel])
 
   const handleVarChange = useCallback((key: string, value: string) => {
     setVarValues((prev) => ({ ...prev, [key]: value }))
@@ -538,8 +551,9 @@ function FormulaPage() {
             <button
               type="button"
               onClick={handleOpenPour}
-              style={pourButtonStyle}
-              title="Create beads locally"
+              style={isDisconnected ? { ...pourButtonStyle, opacity: 0.5, cursor: 'not-allowed' } : pourButtonStyle}
+              disabled={isDisconnected}
+              title={isDisconnected ? 'Backend connection required for this action' : 'Create beads locally'}
             >
               Pour ({result.steps.length})
             </button>
@@ -547,8 +561,9 @@ function FormulaPage() {
           <button
             type="button"
             onClick={handleOpenSling}
-            style={slingButtonStyle}
-            title="Dispatch to agent (Cmd+Shift+S)"
+            style={isDisconnected ? { ...slingButtonStyle, opacity: 0.5, cursor: 'not-allowed' } : slingButtonStyle}
+            disabled={isDisconnected}
+            title={isDisconnected ? 'Backend connection required for this action' : 'Dispatch to agent (Cmd+Shift+S)'}
           >
             Sling
           </button>
@@ -670,7 +685,7 @@ function FormulaPage() {
 
         {/* Side panel - shows StepEditorPanel when step selected (visual/outline mode), otherwise VarsPanel */}
         {showSidePanel && (
-          <div style={sidePanelStyle}>
+          <div ref={stepEditorPanelRef} style={sidePanelStyle}>
             <StepEditorPanel
               step={selectedStep}
               availableStepIds={availableStepIds}

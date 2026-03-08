@@ -1,7 +1,6 @@
 export { AppShell } from './app-shell'
 export { Sidebar } from './sidebar'
 export { PanelResizer } from './panel-resizer'
-export { FormulaTree, type FormulaTreeProps } from './formula-tree'
 export { DirectoryBrowser, type DirectoryBrowserProps } from './directory-browser'
 export { WelcomePanel, type WelcomePanelProps } from './welcome-panel'
 export { NewProjectModal, type NewProjectModalProps } from './new-project-modal'

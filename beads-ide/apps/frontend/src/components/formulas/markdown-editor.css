@@ -136,3 +136,13 @@
 .tiptap ::selection {
   background-color: rgba(59, 130, 246, 0.3);
 }
+
+/* Loading skeleton pulse animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}

@@ -26,6 +26,7 @@ import {
  * - Escape: Deselect current step
  */
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef } from 'react'
+import { useReducedMotion } from '../../hooks/use-reduced-motion'
 
 import '@xyflow/react/dist/style.css'
 
@@ -42,6 +43,7 @@ interface StepNodeData extends Record<string, unknown> {
   isGate: boolean // Needs 2+ upstream steps
   needsCount: number
   blocksCount: number
+  reducedMotion: boolean
 }
 
 interface GroupNodeData extends Record<string, unknown> {
@@ -135,7 +137,8 @@ const GROUP_COLORS = [
 const nodeContainerStyle = (
   isSelected: boolean,
   isBottleneck: boolean,
-  isGate: boolean
+  isGate: boolean,
+  reducedMotion = false
 ): CSSProperties => ({
   backgroundColor: isSelected
     ? 'rgba(59, 130, 246, 0.15)'
@@ -162,7 +165,7 @@ const nodeContainerStyle = (
       : isGate
         ? '0 0 0 2px rgba(245, 158, 11, 0.2)'
         : 'none',
-  transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+  transition: reducedMotion ? 'none' : 'border-color 0.15s ease, box-shadow 0.15s ease',
 })
 
 const nodeTitleStyle: CSSProperties = {
@@ -266,7 +269,7 @@ function StepNode({ data }: NodeProps<Node<StepNodeData>>) {
   const handleColor = data.isBottleneck ? '#ef4444' : data.isGate ? '#f59e0b' : '#6366f1'
 
   return (
-    <div style={nodeContainerStyle(data.isSelected ?? false, data.isBottleneck, data.isGate)}>
+    <div style={nodeContainerStyle(data.isSelected ?? false, data.isBottleneck, data.isGate, data.reducedMotion)}>
       {/* Target handle (incoming edges) */}
       <Handle
         type="target"
@@ -410,6 +413,8 @@ export function VisualBuilder({
   onStepOpen,
   selectedStepId,
 }: VisualBuilderProps) {
+  const reducedMotion = useReducedMotion()
+
   // Convert steps to React Flow nodes and edges
   const { initialNodes, initialEdges } = useMemo(() => {
     if (!steps || steps.length === 0) {
@@ -465,6 +470,7 @@ export function VisualBuilder({
           isGate: needsCount >= 2,
           needsCount,
           blocksCount: blocks.length,
+          reducedMotion,
         },
       }
     })
@@ -493,7 +499,7 @@ export function VisualBuilder({
               strokeWidth: isCrossGroup ? 3 : 2,
               strokeDasharray: isCrossGroup ? '5,5' : undefined,
             },
-            animated: isCrossGroup,
+            animated: isCrossGroup && !reducedMotion,
           })
         }
       }
@@ -564,7 +570,7 @@ export function VisualBuilder({
     const allNodes = [...groupNodes, ...layoutedStepNodes] as Node[]
 
     return { initialNodes: allNodes, initialEdges: edges }
-  }, [steps, selectedStepId])
+  }, [steps, selectedStepId, reducedMotion])
 
   const [nodes, , onNodesChange] = useNodesState(initialNodes)
   const [edges, , onEdgesChange] = useEdgesState(initialEdges)

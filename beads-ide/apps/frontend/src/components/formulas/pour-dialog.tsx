@@ -241,6 +241,8 @@ export function PourDialog({
   const { pour, burn, isLoading } = usePour()
   const [pourResult, setPourResult] = useState<PourResult | null>(null)
   const [isBurning, setIsBurning] = useState(false)
+  const [confirmingRollback, setConfirmingRollback] = useState(false)
+  const [pouredAt, setPouredAt] = useState<Date | null>(null)
   const dialogRef = useRef<HTMLDialogElement>(null)
 
   const handlePour = useCallback(async () => {
@@ -249,6 +251,7 @@ export function PourDialog({
 
       if (result.ok) {
         setPourResult(result)
+        setPouredAt(new Date())
         toast.success(`Created ${result.bead_count ?? 0} beads`, {
           description: `Molecule: ${result.molecule_id ?? 'unknown'}`,
         })
@@ -294,6 +297,8 @@ export function PourDialog({
 
   const handleClose = useCallback(() => {
     setPourResult(null)
+    setConfirmingRollback(false)
+    setPouredAt(null)
     onClose()
   }, [onClose])
 
@@ -399,20 +404,65 @@ export function PourDialog({
         <div style={footerStyle}>
           {hasPoured ? (
             <>
-              <button
-                style={{
-                  ...burnButtonStyle,
-                  ...(isBurning ? disabledButtonStyle : {}),
-                }}
-                onClick={handleBurn}
-                disabled={isBurning}
-                type="button"
-              >
-                {isBurning ? 'Rolling back...' : 'Rollback'}
-              </button>
-              <button style={cancelButtonStyle} onClick={handleClose} type="button">
-                Done
-              </button>
+              {confirmingRollback ? (
+                <>
+                  <div
+                    style={{
+                      flex: 1,
+                      fontSize: '13px',
+                      color: '#fbbf24',
+                      alignSelf: 'center',
+                    }}
+                    role="alert"
+                  >
+                    Are you sure? This will delete{' '}
+                    {pourResult.bead_count ?? 0} beads created by this pour
+                    {pouredAt && (
+                      <span style={{ color: '#94a3b8', marginLeft: '4px' }}>
+                        (poured at{' '}
+                        {pouredAt.toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        )
+                      </span>
+                    )}
+                    .
+                  </div>
+                  <button
+                    style={cancelButtonStyle}
+                    onClick={() => setConfirmingRollback(false)}
+                    disabled={isBurning}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    style={{
+                      ...burnButtonStyle,
+                      ...(isBurning ? disabledButtonStyle : {}),
+                    }}
+                    onClick={handleBurn}
+                    disabled={isBurning}
+                    type="button"
+                  >
+                    {isBurning ? 'Rolling back...' : 'Confirm Rollback'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    style={burnButtonStyle}
+                    onClick={() => setConfirmingRollback(true)}
+                    type="button"
+                  >
+                    Rollback
+                  </button>
+                  <button style={cancelButtonStyle} onClick={handleClose} type="button">
+                    Done
+                  </button>
+                </>
+              )}
             </>
           ) : (
             <>

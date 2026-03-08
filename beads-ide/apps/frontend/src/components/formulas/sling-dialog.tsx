@@ -134,6 +134,15 @@ const hintStyle: CSSProperties = {
   marginTop: '6px',
 }
 
+const validationErrorStyle: CSSProperties = {
+  fontSize: '12px',
+  color: '#f87171',
+  marginTop: '6px',
+}
+
+/** Validates sling target format: rig/polecats/name or rig/crew/name */
+const SLING_TARGET_PATTERN = /^[a-z][a-z0-9_-]*\/(polecats|crew)\/[a-z][a-z0-9_-]*$/
+
 const formulaPathStyle: CSSProperties = {
   fontSize: '13px',
   color: '#a5b4fc',
@@ -311,7 +320,9 @@ export function SlingDialog({
   }, [result, onNavigateToResults])
 
   const currentTarget = useCustom ? customTarget : selectedTarget
-  const canSling = currentTarget.trim() !== '' && !isLoading
+  const isCustomTargetValid = !useCustom || SLING_TARGET_PATTERN.test(customTarget)
+  const showValidationError = useCustom && customTarget.trim() !== '' && !isCustomTargetValid
+  const canSling = currentTarget.trim() !== '' && isCustomTargetValid && !isLoading
 
   // Handle dialog cancel event (backdrop click or escape)
   const handleDialogCancel = useCallback(
@@ -423,70 +434,74 @@ export function SlingDialog({
           )}
 
           {/* Target selection */}
-          {!result?.ok && (
-            <>
-              <div style={selectContainerStyle}>
-                <label htmlFor="sling-target" style={labelStyle}>
-                  Target
-                </label>
-                <select
-                  id="sling-target"
-                  value={useCustom ? '__custom__' : selectedTarget}
-                  onChange={handleTargetChange}
-                  style={selectStyle}
-                  disabled={isLoading}
-                >
-                  {DEFAULT_TARGETS.map((target) => (
-                    <option key={target.id} value={target.id}>
-                      {target.name} ({target.type})
-                    </option>
-                  ))}
-                  <option value="__custom__">Custom target...</option>
-                </select>
-              </div>
+          <div style={selectContainerStyle}>
+            <label htmlFor="sling-target" style={labelStyle}>
+              Target
+            </label>
+            <select
+              id="sling-target"
+              value={useCustom ? '__custom__' : selectedTarget}
+              onChange={handleTargetChange}
+              style={selectStyle}
+              disabled={isLoading}
+            >
+              {DEFAULT_TARGETS.map((target) => (
+                <option key={target.id} value={target.id}>
+                  {target.name} ({target.type})
+                </option>
+              ))}
+              <option value="__custom__">Custom target...</option>
+            </select>
+          </div>
 
-              {useCustom && (
-                <div style={selectContainerStyle}>
-                  <label htmlFor="sling-custom-target" style={labelStyle}>
-                    Custom Target
-                  </label>
-                  <input
-                    ref={customInputRef}
-                    id="sling-custom-target"
-                    type="text"
-                    value={customTarget}
-                    onChange={handleCustomTargetChange}
-                    placeholder="rig/polecats/name or rig/crew/name"
-                    style={inputStyle}
-                    disabled={isLoading}
-                  />
-                  <div style={hintStyle}>Format: rig/polecats/name or rig/crew/name</div>
+          {useCustom && (
+            <div style={selectContainerStyle}>
+              <label htmlFor="sling-custom-target" style={labelStyle}>
+                Custom Target
+              </label>
+              <input
+                ref={customInputRef}
+                id="sling-custom-target"
+                type="text"
+                value={customTarget}
+                onChange={handleCustomTargetChange}
+                placeholder="rig/polecats/name or rig/crew/name"
+                style={inputStyle}
+                disabled={isLoading}
+                aria-invalid={showValidationError || undefined}
+                aria-describedby="sling-custom-target-hint"
+              />
+              {showValidationError ? (
+                <div id="sling-custom-target-hint" style={validationErrorStyle} role="alert">
+                  Invalid format. Use: rig/polecats/name or rig/crew/name
                 </div>
+              ) : (
+                <div id="sling-custom-target-hint" style={hintStyle}>Format: rig/polecats/name or rig/crew/name</div>
               )}
+            </div>
+          )}
 
-              {vars && Object.keys(vars).length > 0 && (
-                <div style={{ marginTop: '12px' }}>
-                  <div style={labelStyle}>Variables</div>
-                  <div
-                    style={{
-                      background: '#262626',
-                      padding: '10px 12px',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontFamily: 'monospace',
-                    }}
-                  >
-                    {Object.entries(vars).map(([key, value]) => (
-                      <div key={key} style={{ color: '#a3a3a3' }}>
-                        <span style={{ color: '#a5b4fc' }}>{key}</span>
-                        <span style={{ color: '#666' }}> = </span>
-                        <span>{value}</span>
-                      </div>
-                    ))}
+          {vars && Object.keys(vars).length > 0 && (
+            <div style={{ marginTop: '12px' }}>
+              <div style={labelStyle}>Variables</div>
+              <div
+                style={{
+                  background: '#262626',
+                  padding: '10px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontFamily: 'monospace',
+                }}
+              >
+                {Object.entries(vars).map(([key, value]) => (
+                  <div key={key} style={{ color: '#a3a3a3' }}>
+                    <span style={{ color: '#a5b4fc' }}>{key}</span>
+                    <span style={{ color: '#666' }}> = </span>
+                    <span>{value}</span>
                   </div>
-                </div>
-              )}
-            </>
+                ))}
+              </div>
+            </div>
           )}
         </div>
 
@@ -494,16 +509,15 @@ export function SlingDialog({
           <button type="button" onClick={onClose} style={cancelButtonStyle} disabled={isLoading}>
             {result?.ok ? 'Close' : 'Cancel'}
           </button>
-          {!result?.ok && (
-            <button
-              type="button"
-              onClick={handleSling}
-              style={canSling ? slingButtonStyle : slingButtonDisabledStyle}
-              disabled={!canSling}
-            >
-              {isLoading ? 'Slinging...' : 'Sling'}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleSling}
+            style={canSling ? slingButtonStyle : slingButtonDisabledStyle}
+            disabled={!canSling}
+            title={showValidationError ? 'Target must match format: rig/polecats/name or rig/crew/name' : undefined}
+          >
+            {isLoading ? 'Slinging...' : result?.ok ? 'Sling Again' : 'Sling'}
+          </button>
         </footer>
       </div>
     </dialog>

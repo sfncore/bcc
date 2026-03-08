@@ -316,7 +316,22 @@ export function CommandPalette({
         >
           {filteredActions.length === 0 ? (
             <div style={{ padding: '24px', textAlign: 'center', color: '#737373' }}>
-              No results found
+              <div style={{ marginBottom: '4px' }}>No results found</div>
+              <div style={{ fontSize: '12px' }}>
+                Try different keywords or press{' '}
+                <kbd
+                  style={{
+                    fontSize: '11px',
+                    padding: '1px 5px',
+                    background: 'rgba(255,255,255,0.1)',
+                    borderRadius: '4px',
+                    fontFamily: 'system-ui, sans-serif',
+                  }}
+                >
+                  Esc
+                </kbd>{' '}
+                to close
+              </div>
             </div>
           ) : (
             Object.entries(groupedActions).map(([category, categoryActions]) => {

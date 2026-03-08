@@ -6,7 +6,6 @@ import { BeadDetail } from '../components/beads/bead-detail'
 import {
   AppShell,
   DirectoryBrowser,
-  FormulaTree,
   NewProjectModal,
   WorkspaceHeader,
   WorkspaceTree,
@@ -222,52 +221,27 @@ function RootLayoutInner() {
 
   return (
     <>
-      <a
-        href="#main-content"
-        style={{
-          position: 'absolute',
-          left: '-9999px',
-          top: 'auto',
-          width: '1px',
-          height: '1px',
-          overflow: 'hidden',
-          zIndex: 9999,
-        }}
-        onFocus={(e) => {
-          e.currentTarget.style.left = '8px'
-          e.currentTarget.style.top = '8px'
-          e.currentTarget.style.width = 'auto'
-          e.currentTarget.style.height = 'auto'
-          e.currentTarget.style.overflow = 'visible'
-          e.currentTarget.style.padding = '8px 16px'
-          e.currentTarget.style.backgroundColor = '#1e1e1e'
-          e.currentTarget.style.color = '#fff'
-          e.currentTarget.style.border = '2px solid #007acc'
-          e.currentTarget.style.borderRadius = '4px'
-          e.currentTarget.style.textDecoration = 'none'
-          e.currentTarget.style.fontWeight = '500'
-        }}
-        onBlur={(e) => {
-          e.currentTarget.style.left = '-9999px'
-          e.currentTarget.style.top = 'auto'
-          e.currentTarget.style.width = '1px'
-          e.currentTarget.style.height = '1px'
-          e.currentTarget.style.overflow = 'hidden'
+      <button
+        type="button"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[9999] focus:px-4 focus:py-2 focus:bg-zinc-900 focus:text-white focus:border-2 focus:border-brand-500 focus:rounded focus:font-medium"
+        onClick={() => {
+          const main = document.getElementById('main-content')
+          if (main) {
+            main.tabIndex = -1
+            main.focus()
+            main.removeAttribute('tabindex')
+          }
         }}
       >
         Skip to main content
-      </a>
+      </button>
       <OfflineBanner />
       <AppShell
         sidebarContent={
-          config.rootPath ? (
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-              <WorkspaceHeader onFilterChange={setTreeFilter} />
-              <WorkspaceTree filter={treeFilter} />
-            </div>
-          ) : (
-            <FormulaTree />
-          )
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <WorkspaceHeader onFilterChange={setTreeFilter} />
+            <WorkspaceTree filter={treeFilter} />
+          </div>
         }
         mainContent={
           <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>

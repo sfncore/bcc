@@ -37,6 +37,7 @@ import {
 } from 'react'
 import '@xyflow/react/dist/style.css'
 import type { GraphEdge, GraphNode } from '@beads-ide/shared'
+import { useReducedMotion } from '../../hooks/use-reduced-motion'
 import {
   DEFAULT_SIMPLIFICATION_STATE,
   GraphControls,
@@ -64,6 +65,7 @@ interface BeadData extends Record<string, unknown> {
   parentEpic?: string
   isCluster: false
   dimmed?: boolean
+  reducedMotion?: boolean
 }
 
 type NodeData = ClusterData | BeadData
@@ -126,7 +128,7 @@ function BeadNode({ data }: { data: BeadData }) {
         width: NODE_WIDTH,
         minHeight: NODE_HEIGHT,
         opacity,
-        transition: 'opacity 0.2s ease',
+        transition: data.reducedMotion ? 'none' : 'opacity 0.2s ease',
       }}
     >
       <div
@@ -356,7 +358,8 @@ function applyFisheyeDistortion(
 function applySimplification(
   rawNodes: GraphNode[],
   rawEdges: GraphEdge[],
-  state: GraphSimplificationState
+  state: GraphSimplificationState,
+  reducedMotion = false
 ): { nodes: Node<NodeData>[]; edges: Edge[] } {
   let processedNodes: GraphNode[] = [...rawNodes]
   let processedEdges: GraphEdge[] = [...rawEdges]
@@ -461,6 +464,7 @@ function applySimplification(
         type: node.type,
         isCluster: false as const,
         dimmed,
+        reducedMotion,
       },
     })
     index++
@@ -472,7 +476,7 @@ function applySimplification(
     source: e.from,
     target: e.to,
     type: 'default',
-    animated: e.type === 'blocks',
+    animated: e.type === 'blocks' && !reducedMotion,
     style: {
       stroke:
         focusedNodes && (!focusedNodes.has(e.from) || !focusedNodes.has(e.to))
@@ -683,6 +687,28 @@ function GraphListView({ nodes, edges, onBeadClick, onBeadDoubleClick }: GraphLi
   )
 }
 
+const SIMPLIFICATION_STORAGE_KEY = 'beads-ide:graph-simplification'
+
+function loadSimplificationState(): GraphSimplificationState {
+  try {
+    const saved = localStorage.getItem(SIMPLIFICATION_STORAGE_KEY)
+    if (saved) {
+      return { ...DEFAULT_SIMPLIFICATION_STATE, ...JSON.parse(saved) }
+    }
+  } catch {
+    // Ignore localStorage errors
+  }
+  return DEFAULT_SIMPLIFICATION_STATE
+}
+
+function saveSimplificationState(state: GraphSimplificationState): void {
+  try {
+    localStorage.setItem(SIMPLIFICATION_STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
 export function GraphView({
   nodes: rawNodes,
   edges: rawEdges,
@@ -690,13 +716,19 @@ export function GraphView({
   onBeadClick,
   onBeadDoubleClick,
 }: GraphViewProps) {
+  const reducedMotion = useReducedMotion()
   const [simplificationState, setSimplificationState] = useState<GraphSimplificationState>(
-    DEFAULT_SIMPLIFICATION_STATE
+    loadSimplificationState
   )
+  useEffect(() => {
+    saveSimplificationState(simplificationState)
+  }, [simplificationState])
+
   const [zoom, setZoom] = useState(1)
   const [viewMode, setViewMode] = useState<'graph' | 'list'>('graph')
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const rafRef = useRef<number | null>(null)
 
   // Calculate density health
   const densityHealth = useMemo(
@@ -706,8 +738,8 @@ export function GraphView({
 
   // Apply simplification
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
-    () => applySimplification(rawNodes, rawEdges, simplificationState),
-    [rawNodes, rawEdges, simplificationState]
+    () => applySimplification(rawNodes, rawEdges, simplificationState, reducedMotion),
+    [rawNodes, rawEdges, simplificationState, reducedMotion]
   )
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes as Node[])
@@ -734,19 +766,37 @@ export function GraphView({
     }
   }, [simplificationState.fisheyeMode, mousePosition, initialNodes, setNodes])
 
-  // Handle mouse move for fisheye effect
+  // Clean up pending RAF on unmount
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current)
+      }
+    }
+  }, [])
+
+  // Handle mouse move for fisheye effect (throttled via requestAnimationFrame)
   const handleMouseMove = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
       if (!simplificationState.fisheyeMode || !containerRef.current) {
         return
       }
 
-      const rect = containerRef.current.getBoundingClientRect()
-      // Convert screen coordinates to flow coordinates (accounting for zoom and pan)
-      const flowX = (event.clientX - rect.left - rect.width / 2) / zoom
-      const flowY = (event.clientY - rect.top - rect.height / 2) / zoom
+      if (rafRef.current !== null) {
+        return
+      }
 
-      setMousePosition({ x: flowX, y: flowY })
+      const rect = containerRef.current.getBoundingClientRect()
+      const clientX = event.clientX
+      const clientY = event.clientY
+
+      rafRef.current = requestAnimationFrame(() => {
+        // Convert screen coordinates to flow coordinates (accounting for zoom and pan)
+        const flowX = (clientX - rect.left - rect.width / 2) / zoom
+        const flowY = (clientY - rect.top - rect.height / 2) / zoom
+        setMousePosition({ x: flowX, y: flowY })
+        rafRef.current = null
+      })
     },
     [simplificationState.fisheyeMode, zoom]
   )
@@ -754,6 +804,10 @@ export function GraphView({
   // Clear mouse position when leaving the container
   const handleMouseLeave = useCallback(() => {
     if (simplificationState.fisheyeMode) {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
       setMousePosition(null)
       setNodes(initialNodes as Node[])
     }

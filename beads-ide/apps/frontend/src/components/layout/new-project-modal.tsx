@@ -1,5 +1,5 @@
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
-import { apiPost } from '../../lib'
+import { type ApiError, apiPost } from '../../lib'
 
 export interface NewProjectModalProps {
   isOpen: boolean
@@ -140,6 +140,25 @@ const createBtnStyle: CSSProperties = {
   color: '#0f172a',
 }
 
+/** Map backend error codes to user-friendly messages, falling back to raw details. */
+function parseApiError(error: ApiError): string {
+  // Try to parse structured error from details (backend returns JSON in error.details for 4xx)
+  if (error.details) {
+    try {
+      const parsed = JSON.parse(error.details)
+      if (parsed && typeof parsed.error === 'string') {
+        return parsed.error
+      }
+    } catch {
+      // details is not JSON, use as-is if it looks like a message
+      if (error.details.length < 200 && !error.details.startsWith('{')) {
+        return error.details
+      }
+    }
+  }
+  return error.message
+}
+
 export function NewProjectModal({
   isOpen,
   selectedPath,
@@ -162,22 +181,31 @@ export function NewProjectModal({
   }, [isOpen])
 
   const handleCreate = useCallback(async () => {
-    setIsCreating(true)
     setErrorMsg(null)
+
+    // Client-side path validation
+    if (!selectedPath || !selectedPath.trim()) {
+      setErrorMsg('No folder selected. Please select a folder first.')
+      return
+    }
+    if (!selectedPath.startsWith('/')) {
+      setErrorMsg('Path must be an absolute path (starting with /).')
+      return
+    }
+
+    setIsCreating(true)
     try {
       const { data, error } = await apiPost<
         { ok: true; root: string; created: string[] },
         { path: string; template: string }
       >('/api/workspace/init', { path: selectedPath, template: 'blank' })
       if (error) {
-        setErrorMsg(error.message)
+        setErrorMsg(parseApiError(error))
         return
       }
       if (data) {
         onComplete()
       }
-    } catch {
-      setErrorMsg('Failed to create project')
     } finally {
       setIsCreating(false)
     }
