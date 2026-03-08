@@ -227,6 +227,9 @@ function FormulaPage() {
   // Track when unsaved changes are first detected
   const hasAnnouncedUnsavedRef = useRef(false)
 
+  // Ref for the step editor side panel to scroll into view on selection
+  const stepEditorPanelRef = useRef<HTMLDivElement>(null)
+
   // Compute isDirty from current content vs saved content
   const isDirty = tomlContent !== savedContent
 
@@ -383,6 +386,13 @@ function FormulaPage() {
   // Determine if side panel should show (for visual/flow modes with selected step)
   // Outline mode uses inline editing, so no side panel needed
   const showSidePanel = (viewMode === 'visual' || viewMode === 'flow') && selectedStep
+
+  // Scroll step editor panel into view when it appears after step selection
+  useEffect(() => {
+    if (showSidePanel && stepEditorPanelRef.current) {
+      stepEditorPanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [showSidePanel])
 
   const handleVarChange = useCallback((key: string, value: string) => {
     setVarValues((prev) => ({ ...prev, [key]: value }))
@@ -675,7 +685,7 @@ function FormulaPage() {
 
         {/* Side panel - shows StepEditorPanel when step selected (visual/outline mode), otherwise VarsPanel */}
         {showSidePanel && (
-          <div style={sidePanelStyle}>
+          <div ref={stepEditorPanelRef} style={sidePanelStyle}>
             <StepEditorPanel
               step={selectedStep}
               availableStepIds={availableStepIds}
