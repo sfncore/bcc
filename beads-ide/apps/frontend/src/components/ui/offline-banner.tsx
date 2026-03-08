@@ -2,7 +2,7 @@
  * Degraded mode banner for when database/backend features are unavailable.
  * Shows at the top of the app to inform users of limited functionality.
  */
-import { type CSSProperties, useCallback, useEffect, useState } from 'react'
+import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
 import { type ConnectionState, checkHealth, onConnectionStateChange } from '../../lib/api'
 
 export interface OfflineBannerProps {
@@ -72,6 +72,20 @@ const retryButtonDisabledStyle: CSSProperties = {
   cursor: 'not-allowed',
 }
 
+const spinnerStyle: CSSProperties = {
+  display: 'inline-block',
+  width: '12px',
+  height: '12px',
+  border: '2px solid rgba(255, 255, 255, 0.3)',
+  borderTopColor: '#fff',
+  borderRadius: '50%',
+  animation: 'offline-banner-spin 0.6s linear infinite',
+  verticalAlign: 'middle',
+  marginRight: '6px',
+}
+
+const AUTO_RETRY_INTERVAL = 30
+
 /**
  * Warning icon for degraded mode
  */
@@ -125,6 +139,13 @@ function OfflineIcon() {
 }
 
 /**
+ * Spinner component for retry button loading state
+ */
+function Spinner() {
+  return <span style={spinnerStyle} aria-hidden="true" />
+}
+
+/**
  * Banner component that shows connection status.
  * Hidden when connected, shows warning for degraded mode,
  * shows error for disconnected mode.
@@ -136,6 +157,23 @@ export function OfflineBanner({
 }: OfflineBannerProps) {
   const [connectionState, setConnectionState] = useState<ConnectionState>('connected')
   const [isRetrying, setIsRetrying] = useState(false)
+  const [countdown, setCountdown] = useState(AUTO_RETRY_INTERVAL)
+  const [retryQueued, setRetryQueued] = useState(false)
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const styleInjectedRef = useRef(false)
+
+  // Inject keyframe animation once
+  useEffect(() => {
+    if (styleInjectedRef.current) return
+    styleInjectedRef.current = true
+    const style = document.createElement('style')
+    style.textContent = '@keyframes offline-banner-spin { to { transform: rotate(360deg) } }'
+    document.head.appendChild(style)
+    return () => {
+      document.head.removeChild(style)
+      styleInjectedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (forceState !== undefined) {
@@ -146,16 +184,66 @@ export function OfflineBanner({
     return onConnectionStateChange(setConnectionState)
   }, [forceState])
 
-  const handleRetry = useCallback(async () => {
-    if (isRetrying) return
-
+  const performRetry = useCallback(async () => {
     setIsRetrying(true)
+    setRetryQueued(false)
     try {
       await checkHealth()
     } finally {
       setIsRetrying(false)
+      setCountdown(AUTO_RETRY_INTERVAL)
     }
-  }, [isRetrying])
+  }, [])
+
+  // Auto-retry countdown when disconnected/degraded
+  useEffect(() => {
+    if (connectionState === 'connected' || isRetrying) {
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current)
+        countdownRef.current = null
+      }
+      return
+    }
+
+    setCountdown(AUTO_RETRY_INTERVAL)
+    countdownRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => {
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current)
+        countdownRef.current = null
+      }
+    }
+  }, [connectionState, isRetrying])
+
+  // Trigger retry when countdown reaches 0
+  useEffect(() => {
+    if (countdown === 0 && !isRetrying) {
+      performRetry()
+    }
+  }, [countdown, isRetrying, performRetry])
+
+  // Execute queued retry when current check finishes
+  useEffect(() => {
+    if (!isRetrying && retryQueued) {
+      performRetry()
+    }
+  }, [isRetrying, retryQueued, performRetry])
+
+  const handleRetry = useCallback(() => {
+    if (isRetrying) {
+      setRetryQueued(true)
+      return
+    }
+    performRetry()
+  }, [isRetrying, performRetry])
 
   if (connectionState === 'connected') {
     return <div style={hiddenStyle} aria-hidden="true" />
@@ -166,6 +254,12 @@ export function OfflineBanner({
   const style = isDegraded ? degradedBannerStyle : disconnectedBannerStyle
   const Icon = isDegraded ? WarningIcon : OfflineIcon
 
+  const buttonLabel = isRetrying
+    ? 'Checking...'
+    : retryQueued
+      ? 'Queued...'
+      : `Retry${countdown < AUTO_RETRY_INTERVAL ? ` (${countdown}s)` : ''}`
+
   return (
     <div style={style} role="alert">
       <Icon />
@@ -174,7 +268,7 @@ export function OfflineBanner({
         type="button"
         style={isRetrying ? retryButtonDisabledStyle : retryButtonStyle}
         onClick={handleRetry}
-        disabled={isRetrying}
+        aria-label={isRetrying ? 'Checking connection...' : `Retry connection. Auto-retry in ${countdown} seconds`}
         onMouseOver={(e) => {
           if (!isRetrying) {
             e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.25)'
@@ -196,7 +290,8 @@ export function OfflineBanner({
           }
         }}
       >
-        {isRetrying ? 'Checking...' : 'Retry'}
+        {isRetrying && <Spinner />}
+        {buttonLabel}
       </button>
     </div>
   )
