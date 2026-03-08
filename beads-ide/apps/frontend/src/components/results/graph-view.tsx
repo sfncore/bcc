@@ -683,6 +683,28 @@ function GraphListView({ nodes, edges, onBeadClick, onBeadDoubleClick }: GraphLi
   )
 }
 
+const SIMPLIFICATION_STORAGE_KEY = 'beads-ide:graph-simplification'
+
+function loadSimplificationState(): GraphSimplificationState {
+  try {
+    const saved = localStorage.getItem(SIMPLIFICATION_STORAGE_KEY)
+    if (saved) {
+      return { ...DEFAULT_SIMPLIFICATION_STATE, ...JSON.parse(saved) }
+    }
+  } catch {
+    // Ignore localStorage errors
+  }
+  return DEFAULT_SIMPLIFICATION_STATE
+}
+
+function saveSimplificationState(state: GraphSimplificationState): void {
+  try {
+    localStorage.setItem(SIMPLIFICATION_STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
 export function GraphView({
   nodes: rawNodes,
   edges: rawEdges,
@@ -691,8 +713,12 @@ export function GraphView({
   onBeadDoubleClick,
 }: GraphViewProps) {
   const [simplificationState, setSimplificationState] = useState<GraphSimplificationState>(
-    DEFAULT_SIMPLIFICATION_STATE
+    loadSimplificationState
   )
+  useEffect(() => {
+    saveSimplificationState(simplificationState)
+  }, [simplificationState])
+
   const [zoom, setZoom] = useState(1)
   const [viewMode, setViewMode] = useState<'graph' | 'list'>('graph')
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
@@ -802,7 +828,7 @@ export function GraphView({
         onBeadClick(node.id)
       }
     },
-    [simplificationState.focusMode, onBeadClick]
+    [simplificationState.focusMode, onBeadClick, setSimplificationState]
   )
 
   const handleNodeDoubleClick = useCallback(
