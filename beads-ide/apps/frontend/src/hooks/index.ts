@@ -26,3 +26,4 @@ export {
   type WorkspaceConfig,
 } from './use-workspace-config'
 export { useTree, type UseTreeReturn } from './use-tree'
+export { useReducedMotion } from './use-reduced-motion'

@@ -37,6 +37,7 @@ import {
 } from 'react'
 import '@xyflow/react/dist/style.css'
 import type { GraphEdge, GraphNode } from '@beads-ide/shared'
+import { useReducedMotion } from '../../hooks/use-reduced-motion'
 import {
   DEFAULT_SIMPLIFICATION_STATE,
   GraphControls,
@@ -64,6 +65,7 @@ interface BeadData extends Record<string, unknown> {
   parentEpic?: string
   isCluster: false
   dimmed?: boolean
+  reducedMotion?: boolean
 }
 
 type NodeData = ClusterData | BeadData
@@ -126,7 +128,7 @@ function BeadNode({ data }: { data: BeadData }) {
         width: NODE_WIDTH,
         minHeight: NODE_HEIGHT,
         opacity,
-        transition: 'opacity 0.2s ease',
+        transition: data.reducedMotion ? 'none' : 'opacity 0.2s ease',
       }}
     >
       <div
@@ -356,7 +358,8 @@ function applyFisheyeDistortion(
 function applySimplification(
   rawNodes: GraphNode[],
   rawEdges: GraphEdge[],
-  state: GraphSimplificationState
+  state: GraphSimplificationState,
+  reducedMotion = false
 ): { nodes: Node<NodeData>[]; edges: Edge[] } {
   let processedNodes: GraphNode[] = [...rawNodes]
   let processedEdges: GraphEdge[] = [...rawEdges]
@@ -461,6 +464,7 @@ function applySimplification(
         type: node.type,
         isCluster: false as const,
         dimmed,
+        reducedMotion,
       },
     })
     index++
@@ -472,7 +476,7 @@ function applySimplification(
     source: e.from,
     target: e.to,
     type: 'default',
-    animated: e.type === 'blocks',
+    animated: e.type === 'blocks' && !reducedMotion,
     style: {
       stroke:
         focusedNodes && (!focusedNodes.has(e.from) || !focusedNodes.has(e.to))
@@ -712,6 +716,7 @@ export function GraphView({
   onBeadClick,
   onBeadDoubleClick,
 }: GraphViewProps) {
+  const reducedMotion = useReducedMotion()
   const [simplificationState, setSimplificationState] = useState<GraphSimplificationState>(
     loadSimplificationState
   )
@@ -733,8 +738,8 @@ export function GraphView({
 
   // Apply simplification
   const { nodes: initialNodes, edges: initialEdges } = useMemo(
-    () => applySimplification(rawNodes, rawEdges, simplificationState),
-    [rawNodes, rawEdges, simplificationState]
+    () => applySimplification(rawNodes, rawEdges, simplificationState, reducedMotion),
+    [rawNodes, rawEdges, simplificationState, reducedMotion]
   )
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes as Node[])
