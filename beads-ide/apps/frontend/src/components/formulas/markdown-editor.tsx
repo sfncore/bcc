@@ -23,6 +23,8 @@ export interface MarkdownEditorProps {
   readOnly?: boolean
   /** ID of the element that labels this editor (for accessibility) */
   'aria-labelledby'?: string
+  /** ID of the element that describes this editor (e.g. error message) */
+  'aria-describedby'?: string
 }
 
 const editorContainerStyle: CSSProperties = {
@@ -97,6 +99,7 @@ export function MarkdownEditor({
   minHeight = '200px',
   readOnly = false,
   'aria-labelledby': ariaLabelledBy,
+  'aria-describedby': ariaDescribedBy,
 }: MarkdownEditorProps) {
   // Create turndown service for HTML -> Markdown conversion
   const turndownService = useMemo(() => {
@@ -136,6 +139,7 @@ export function MarkdownEditor({
         role: 'textbox',
         'aria-multiline': 'true',
         ...(ariaLabelledBy ? { 'aria-labelledby': ariaLabelledBy } : {}),
+        ...(ariaDescribedBy ? { 'aria-describedby': ariaDescribedBy } : {}),
       },
     },
     onUpdate: ({ editor }) => {

@@ -13,6 +13,8 @@ export interface NeedsSelectorProps {
   onChange: (ids: string[]) => void
   /** Whether the selector is disabled */
   disabled?: boolean
+  /** ID of the element that describes this selector (e.g. error message) */
+  'aria-describedby'?: string
 }
 
 const containerStyle: CSSProperties = {
@@ -56,6 +58,7 @@ export function NeedsSelector({
   availableIds,
   onChange,
   disabled = false,
+  'aria-describedby': ariaDescribedBy,
 }: NeedsSelectorProps) {
   const selectedSet = new Set(selectedIds)
 
@@ -75,7 +78,7 @@ export function NeedsSelector({
   }
 
   return (
-    <div style={containerStyle}>
+    <div style={containerStyle} role="group" aria-label="Dependencies" aria-describedby={ariaDescribedBy}>
       {availableIds.map((id) => {
         const isChecked = selectedSet.has(id)
         return (

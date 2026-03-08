@@ -365,7 +365,7 @@ export function StepEditorPanel({
             }}
           />
           {validationErrors.title && (
-            <div id="step-editor-title-error" style={errorMessageStyle} role="alert">
+            <div id="step-editor-title-error" style={errorMessageStyle} role="alert" aria-live="assertive">
               {validationErrors.title}
             </div>
           )}
@@ -417,7 +417,7 @@ export function StepEditorPanel({
             <span style={priorityLabelStyle}>{priorityLabel}</span>
           </div>
           {validationErrors.priority && (
-            <div id="step-editor-priority-error" style={errorMessageStyle} role="alert">
+            <div id="step-editor-priority-error" style={errorMessageStyle} role="alert" aria-live="assertive">
               {validationErrors.priority}
             </div>
           )}
@@ -456,10 +456,11 @@ export function StepEditorPanel({
               availableIds={otherStepIds}
               onChange={handleNeedsChange}
               disabled={isLoading}
+              aria-describedby={validationErrors.needs ? 'step-editor-needs-error' : undefined}
             />
           )}
           {validationErrors.needs && (
-            <div style={errorMessageStyle} role="alert">
+            <div id="step-editor-needs-error" style={errorMessageStyle} role="alert" aria-live="assertive">
               {validationErrors.needs}
             </div>
           )}
@@ -476,10 +477,11 @@ export function StepEditorPanel({
             placeholder="Describe what this step does..."
             minHeight="250px"
             aria-labelledby="step-editor-description-label"
+            aria-describedby={validationErrors.description ? 'step-editor-description-error' : undefined}
             readOnly={isLoading}
           />
           {validationErrors.description && (
-            <div style={errorMessageStyle} role="alert">
+            <div id="step-editor-description-error" style={errorMessageStyle} role="alert" aria-live="assertive">
               {validationErrors.description}
             </div>
           )}
