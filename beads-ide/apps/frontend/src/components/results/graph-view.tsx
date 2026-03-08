@@ -697,6 +697,7 @@ export function GraphView({
   const [viewMode, setViewMode] = useState<'graph' | 'list'>('graph')
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const rafRef = useRef<number | null>(null)
 
   // Calculate density health
   const densityHealth = useMemo(
@@ -734,19 +735,37 @@ export function GraphView({
     }
   }, [simplificationState.fisheyeMode, mousePosition, initialNodes, setNodes])
 
-  // Handle mouse move for fisheye effect
+  // Clean up pending RAF on unmount
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current)
+      }
+    }
+  }, [])
+
+  // Handle mouse move for fisheye effect (throttled via requestAnimationFrame)
   const handleMouseMove = useCallback(
     (event: ReactMouseEvent<HTMLDivElement>) => {
       if (!simplificationState.fisheyeMode || !containerRef.current) {
         return
       }
 
-      const rect = containerRef.current.getBoundingClientRect()
-      // Convert screen coordinates to flow coordinates (accounting for zoom and pan)
-      const flowX = (event.clientX - rect.left - rect.width / 2) / zoom
-      const flowY = (event.clientY - rect.top - rect.height / 2) / zoom
+      if (rafRef.current !== null) {
+        return
+      }
 
-      setMousePosition({ x: flowX, y: flowY })
+      const rect = containerRef.current.getBoundingClientRect()
+      const clientX = event.clientX
+      const clientY = event.clientY
+
+      rafRef.current = requestAnimationFrame(() => {
+        // Convert screen coordinates to flow coordinates (accounting for zoom and pan)
+        const flowX = (clientX - rect.left - rect.width / 2) / zoom
+        const flowY = (clientY - rect.top - rect.height / 2) / zoom
+        setMousePosition({ x: flowX, y: flowY })
+        rafRef.current = null
+      })
     },
     [simplificationState.fisheyeMode, zoom]
   )
@@ -754,6 +773,10 @@ export function GraphView({
   // Clear mouse position when leaving the container
   const handleMouseLeave = useCallback(() => {
     if (simplificationState.fisheyeMode) {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
       setMousePosition(null)
       setNodes(initialNodes as Node[])
     }
