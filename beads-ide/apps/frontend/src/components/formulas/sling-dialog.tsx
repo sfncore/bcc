@@ -134,6 +134,15 @@ const hintStyle: CSSProperties = {
   marginTop: '6px',
 }
 
+const validationErrorStyle: CSSProperties = {
+  fontSize: '12px',
+  color: '#f87171',
+  marginTop: '6px',
+}
+
+/** Validates sling target format: rig/polecats/name or rig/crew/name */
+const SLING_TARGET_PATTERN = /^[a-z][a-z0-9_-]*\/(polecats|crew)\/[a-z][a-z0-9_-]*$/
+
 const formulaPathStyle: CSSProperties = {
   fontSize: '13px',
   color: '#a5b4fc',
@@ -311,7 +320,9 @@ export function SlingDialog({
   }, [result, onNavigateToResults])
 
   const currentTarget = useCustom ? customTarget : selectedTarget
-  const canSling = currentTarget.trim() !== '' && !isLoading
+  const isCustomTargetValid = !useCustom || SLING_TARGET_PATTERN.test(customTarget)
+  const showValidationError = useCustom && customTarget.trim() !== '' && !isCustomTargetValid
+  const canSling = currentTarget.trim() !== '' && isCustomTargetValid && !isLoading
 
   // Handle dialog cancel event (backdrop click or escape)
   const handleDialogCancel = useCallback(
@@ -457,8 +468,16 @@ export function SlingDialog({
                 placeholder="rig/polecats/name or rig/crew/name"
                 style={inputStyle}
                 disabled={isLoading}
+                aria-invalid={showValidationError || undefined}
+                aria-describedby="sling-custom-target-hint"
               />
-              <div style={hintStyle}>Format: rig/polecats/name or rig/crew/name</div>
+              {showValidationError ? (
+                <div id="sling-custom-target-hint" style={validationErrorStyle} role="alert">
+                  Invalid format. Use: rig/polecats/name or rig/crew/name
+                </div>
+              ) : (
+                <div id="sling-custom-target-hint" style={hintStyle}>Format: rig/polecats/name or rig/crew/name</div>
+              )}
             </div>
           )}
 
@@ -495,6 +514,7 @@ export function SlingDialog({
             onClick={handleSling}
             style={canSling ? slingButtonStyle : slingButtonDisabledStyle}
             disabled={!canSling}
+            title={showValidationError ? 'Target must match format: rig/polecats/name or rig/crew/name' : undefined}
           >
             {isLoading ? 'Slinging...' : result?.ok ? 'Sling Again' : 'Sling'}
           </button>
