@@ -163,6 +163,17 @@ const errorStyle: CSSProperties = {
   fontSize: '13px',
 }
 
+const retryButtonStyle: CSSProperties = {
+  background: 'none',
+  border: '1px solid #f87171',
+  color: '#f87171',
+  cursor: 'pointer',
+  padding: '4px 12px',
+  borderRadius: '4px',
+  fontSize: '12px',
+  marginLeft: '8px',
+}
+
 function FolderIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="#e2a52e" aria-hidden="true">
@@ -298,7 +309,16 @@ export function DirectoryBrowser({
           {isLoading ? (
             <div style={loadingStyle}>Loading...</div>
           ) : error ? (
-            <div style={errorStyle}>{error}</div>
+            <div style={errorStyle}>
+              {error}
+              <button
+                type="button"
+                style={retryButtonStyle}
+                onClick={() => fetchEntries(currentPath || undefined)}
+              >
+                Retry
+              </button>
+            </div>
           ) : entries.length === 0 ? (
             <div style={loadingStyle}>No subdirectories</div>
           ) : (
