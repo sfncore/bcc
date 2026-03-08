@@ -71,6 +71,23 @@ const contentStyle = (minHeight: string): CSSProperties => ({
   minHeight,
 })
 
+const skeletonBarStyle: CSSProperties = {
+  height: '12px',
+  width: '160px',
+  backgroundColor: '#1f2937',
+  borderRadius: '4px',
+  animation: 'pulse 1.5s ease-in-out infinite',
+}
+
+const skeletonLineStyle = (width: string): CSSProperties => ({
+  height: '12px',
+  width,
+  backgroundColor: '#1f2937',
+  borderRadius: '4px',
+  marginBottom: '10px',
+  animation: 'pulse 1.5s ease-in-out infinite',
+})
+
 // Configure marked for safe parsing
 marked.setOptions({
   breaks: true,
@@ -212,7 +229,20 @@ export function MarkdownEditor({
   )
 
   if (!editor) {
-    return null
+    return (
+      <div style={editorContainerStyle}>
+        {!readOnly && (
+          <div style={toolbarStyle}>
+            <div style={skeletonBarStyle} />
+          </div>
+        )}
+        <div style={contentStyle(minHeight)}>
+          <div style={skeletonLineStyle('80%')} />
+          <div style={skeletonLineStyle('60%')} />
+          <div style={skeletonLineStyle('70%')} />
+        </div>
+      </div>
+    )
   }
 
   return (
