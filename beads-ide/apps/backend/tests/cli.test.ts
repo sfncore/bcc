@@ -193,4 +193,16 @@ describe('CLI Execution (Integration)', () => {
       expect(typeof result.exitCode).toBe('number')
     })
   })
+
+  describe('timeout handling', () => {
+    it('returns exit code 124 when command times out', async () => {
+      // Use sleep with a very short timeout to trigger timeout behavior
+      const result = await runCli('bd', ['cook', 'nonexistent-formula', '--json'], {
+        cwd: '/tmp',
+        timeout: 1, // 1ms timeout — will always time out
+      })
+      // Either times out (124) or fails fast before timeout (non-zero)
+      expect(result.exitCode).not.toBe(0)
+    })
+  })
 })

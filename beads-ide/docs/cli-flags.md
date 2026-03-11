@@ -77,32 +77,43 @@ All `--robot-*` commands output JSON suitable for programmatic consumption:
 - `--format json` - Force JSON output (default for robot commands)
 - `--graph-format json|dot|mermaid` - Graph-specific format
 
-### Example Output
+### Verified Output (2026-03-11)
 
-**`--robot-graph --graph-format json`:**
+CLI flag verification performed against live `bd` and `bv` binaries.
+
+**`bd cook <formula> --json`:** Confirmed working. Outputs valid JSON to stdout with structure:
 ```json
 {
-  "nodes": [
-    { "id": "bcc-abc", "title": "...", "status": "open", ... },
-    ...
-  ],
-  "edges": [
-    { "from": "bcc-abc", "to": "bcc-def", "type": "blocks" },
-    ...
-  ],
-  "metrics": { ... }
+  "formula": "explore-module",
+  "version": 1,
+  "type": "workflow",
+  "vars": { "<name>": { "description": "...", "default": "...", "required": true } },
+  "steps": [ { "title": "...", "description": "..." } ]
 }
 ```
 
-**`--robot-insights`:**
+**`bv -robot-graph -graph-format json`:** Confirmed working. Outputs valid JSON to stdout:
 ```json
 {
-  "summary": { ... },
-  "recommendations": [ ... ],
-  "critical_path": [ ... ],
-  "blocked_chains": [ ... ]
+  "format": "json",
+  "nodes": 1,
+  "edges": 0,
+  "explanation": { "what": "...", "when_to_use": "..." },
+  "data_hash": "...",
+  "adjacency": {
+    "nodes": [ { "id": "...", "title": "...", "status": "...", "priority": 4, "pagerank": 1 } ],
+    "edges": null
+  }
 }
 ```
+
+**`bv -robot-insights`:** Confirmed working. Outputs JSON to stdout (requires beads data in cwd).
+
+**`bv -export-graph`:** Does NOT support `--output-format json`. Writes HTML/PNG/SVG files.
+For JSON graph data, use `-robot-graph -graph-format json` instead.
+
+**Note:** `bv` uses Go-style single-dash flags (`-robot-graph`), but also accepts
+double-dash (`--robot-graph`). The cli.ts wrapper uses double-dash for consistency.
 
 ## gt (Gas Town)
 
