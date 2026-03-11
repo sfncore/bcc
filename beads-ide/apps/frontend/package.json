@@ -18,7 +18,7 @@
     "bench:perf": "vitest bench --reporter=verbose tests/performance/"
   },
   "dependencies": {
-    "@beads-ide/shared": "workspace:*",
+    "@beads-ide/shared": "*",
     "@codemirror/commands": "^6.10.2",
     "@codemirror/language": "^6.12.1",
     "@codemirror/search": "^6.6.0",

@@ -13,7 +13,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@beads-ide/shared": "workspace:*",
+    "@beads-ide/shared": "*",
     "@hono/node-server": "^1.13.0",
     "hono": "^4.6.0"
   },
