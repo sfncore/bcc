@@ -1,8 +1,10 @@
 /**
  * Hook for fetching beads list from GET /api/beads.
+ * Uses centralized API client for connection state tracking and error classification.
  */
 import type { BeadFull, BeadsListResponse } from '@beads-ide/shared'
 import { useCallback, useEffect, useState } from 'react'
+import { apiFetch } from '../lib/api'
 
 /** Filter parameters for bead queries */
 export interface BeadFilters {
@@ -20,8 +22,6 @@ export interface UseBeadsReturn {
   error: Error | null
   refresh: () => void
 }
-
-const API_BASE = '' // Use relative URLs for Vite proxy
 
 /**
  * Build query string from filter params.
@@ -43,21 +43,6 @@ function buildQueryString(filters: BeadFilters): string {
 }
 
 /**
- * Fetch beads from the backend API.
- */
-async function fetchBeads(filters: BeadFilters): Promise<BeadsListResponse> {
-  const qs = buildQueryString(filters)
-  const response = await fetch(`${API_BASE}/api/beads${qs}`)
-
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Failed to fetch beads: ${response.status} ${text}`)
-  }
-
-  return (await response.json()) as BeadsListResponse
-}
-
-/**
  * Hook for fetching a filtered list of beads.
  * Automatically refetches when filters change.
  */
@@ -72,9 +57,15 @@ export function useBeads(filters: BeadFilters = {}): UseBeadsReturn {
     setError(null)
 
     try {
-      const result = await fetchBeads(filters)
-      setBeads(result.beads)
-      setCount(result.count)
+      const qs = buildQueryString(filters)
+      const { data, error: apiError } = await apiFetch<BeadsListResponse>(`/api/beads${qs}`)
+
+      if (apiError) {
+        throw new Error(apiError.details || apiError.message)
+      }
+
+      setBeads(data?.beads ?? [])
+      setCount(data?.count ?? 0)
     } catch (err) {
       setError(err instanceof Error ? err : new Error(String(err)))
       setBeads([])

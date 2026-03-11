@@ -3,9 +3,11 @@ import type { SlingRequest, SlingResult } from '@beads-ide/shared'
  * Hook for slinging formulas to agents/crews.
  * Provides state management for the sling dialog and API calls.
  * Shows toast notifications on failure with retry option.
+ * Uses centralized API client for connection state tracking and error classification.
  */
 import { useCallback, useState } from 'react'
 import { toast } from 'sonner'
+import { type ApiError, apiPost, showSlingError } from '../lib/api'
 
 /** Return value of the sling hook */
 export interface UseSlingReturn {
@@ -19,28 +21,6 @@ export interface UseSlingReturn {
   sling: (request: SlingRequest) => Promise<SlingResult>
   /** Reset state */
   reset: () => void
-}
-
-const API_BASE = '' // Use relative URLs for Vite proxy
-
-/**
- * Sling a formula via the backend API.
- */
-async function slingFormula(request: SlingRequest): Promise<SlingResult> {
-  const response = await fetch(`${API_BASE}/api/sling`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(request),
-  })
-
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Sling request failed: ${response.status} ${text}`)
-  }
-
-  return response.json()
 }
 
 /**
@@ -58,27 +38,44 @@ export function useSling(): UseSlingReturn {
     setError(null)
 
     try {
-      const slingResult = await slingFormula(request)
+      const { data, error: apiError } = await apiPost<SlingResult, SlingRequest>(
+        '/api/sling',
+        request
+      )
+
+      if (apiError) {
+        const slingError = new Error(apiError.details || apiError.message)
+        setError(slingError)
+        // Use centralized sling error display with retry
+        showSlingError(apiError, () => sling(request))
+        const failedResult: SlingResult = {
+          ok: false,
+          error: apiError.message,
+        }
+        setResult(failedResult)
+        return failedResult
+      }
+
+      const slingResult = data as SlingResult
       setResult(slingResult)
 
       if (!slingResult.ok) {
         const slingError = new Error(slingResult.error || 'Sling failed')
         setError(slingError)
         // Show toast with error details and retry option
-        toast.error('Sling failed', {
-          description: slingResult.stderr || slingResult.error || 'Unknown error',
-          action: {
-            label: 'Retry',
-            onClick: () => sling(request),
-          },
-        })
+        const errorObj: ApiError = {
+          type: 'server',
+          message: 'Sling failed',
+          details: slingResult.stderr || slingResult.error || 'Unknown error',
+          retryable: true,
+        }
+        showSlingError(errorObj, () => sling(request))
       }
 
       return slingResult
     } catch (err) {
       const slingError = err instanceof Error ? err : new Error(String(err))
       setError(slingError)
-      // Show toast for network/parsing errors with retry option
       toast.error('Sling request failed', {
         description: slingError.message,
         action: {

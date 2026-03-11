@@ -2,8 +2,10 @@ import type { CookRequest, CookResult } from '@beads-ide/shared'
 /**
  * Hook for cooking formulas with debounced triggering.
  * Re-cooks automatically when inputs change.
+ * Uses centralized API client for connection state tracking and error classification.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { apiPost } from '../lib/api'
 
 /** Configuration for the cook hook */
 export interface UseCookOptions {
@@ -25,28 +27,6 @@ export interface UseCookReturn {
   error: Error | null
   /** Manually trigger a cook */
   cook: () => void
-}
-
-const API_BASE = '' // Use relative URLs for Vite proxy
-
-/**
- * Cook a formula via the backend API.
- */
-async function cookFormula(request: CookRequest): Promise<CookResult> {
-  const response = await fetch(`${API_BASE}/api/cook`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(request),
-  })
-
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Cook request failed: ${response.status} ${text}`)
-  }
-
-  return response.json()
 }
 
 /**
@@ -78,16 +58,25 @@ export function useCook(formulaPath: string | null, options: UseCookOptions = {}
     setError(null)
 
     try {
-      const cookResult = await cookFormula({
+      const request: CookRequest = {
         formula_path: formulaPath,
         mode,
         vars,
-      })
+      }
+      const { data, error: apiError } = await apiPost<CookResult, CookRequest>(
+        '/api/cook',
+        request
+      )
 
       // Only update if this is still the latest request
       if (requestId === requestIdRef.current) {
-        setResult(cookResult)
-        setError(null)
+        if (apiError) {
+          setError(new Error(apiError.details || apiError.message))
+          setResult(null)
+        } else {
+          setResult(data)
+          setError(null)
+        }
       }
     } catch (err) {
       if (requestId === requestIdRef.current) {

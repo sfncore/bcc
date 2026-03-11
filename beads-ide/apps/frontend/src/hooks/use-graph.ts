@@ -1,6 +1,7 @@
 /**
  * Hook for fetching graph data and metrics from the backend API.
  * Provides nodes, edges, and the 9 graph metrics for visualization.
+ * Uses centralized API client for connection state tracking and error classification.
  */
 import type {
   GraphEdge,
@@ -11,8 +12,7 @@ import type {
   GraphNode,
 } from '@beads-ide/shared'
 import { useCallback, useEffect, useState } from 'react'
-
-const API_BASE = '' // Use relative URLs for Vite proxy
+import { apiFetch } from '../lib/api'
 
 /** Graph data state */
 export interface GraphData {
@@ -54,15 +54,13 @@ export interface UseGraphReturn {
  * Fetch graph export data from the backend.
  */
 async function fetchGraphExport(): Promise<GraphExport> {
-  const response = await fetch(`${API_BASE}/api/graph/export`)
+  const { data, error: apiError } = await apiFetch<GraphExportResult>('/api/graph/export')
 
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Failed to fetch graph: ${response.status} ${text}`)
+  if (apiError) {
+    throw new Error(apiError.details || apiError.message)
   }
 
-  const result = (await response.json()) as GraphExportResult
-
+  const result = data as GraphExportResult
   if (!result.ok) {
     throw new Error(result.error || 'Failed to fetch graph export')
   }
@@ -74,15 +72,13 @@ async function fetchGraphExport(): Promise<GraphExport> {
  * Fetch graph metrics from the backend.
  */
 async function fetchGraphMetrics(): Promise<GraphMetrics> {
-  const response = await fetch(`${API_BASE}/api/graph/metrics`)
+  const { data, error: apiError } = await apiFetch<GraphMetricsResult>('/api/graph/metrics')
 
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Failed to fetch metrics: ${response.status} ${text}`)
+  if (apiError) {
+    throw new Error(apiError.details || apiError.message)
   }
 
-  const result = (await response.json()) as GraphMetricsResult
-
+  const result = data as GraphMetricsResult
   if (!result.ok) {
     throw new Error(result.error || 'Failed to fetch graph metrics')
   }

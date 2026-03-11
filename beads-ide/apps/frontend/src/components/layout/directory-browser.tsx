@@ -1,4 +1,5 @@
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
+import { apiFetch } from '../../lib/api'
 
 interface BrowseEntry {
   name: string
@@ -200,16 +201,18 @@ export function DirectoryBrowser({
     setError(null)
     try {
       const url = path ? `/api/browse?path=${encodeURIComponent(path)}` : '/api/browse'
-      const response = await fetch(url)
-      const data = await response.json()
-      if (!data.ok) {
-        setError(data.error || 'Failed to browse directory')
+      const { data, error: apiError } = await apiFetch<BrowseResponse>(url)
+
+      if (apiError) {
+        setError(apiError.type === 'network' ? 'Failed to connect to server' : apiError.details || apiError.message)
         return
       }
-      const browseData = data as BrowseResponse
-      setCurrentPath(browseData.path)
-      setParentPath(browseData.parent)
-      setEntries(browseData.entries.filter((e: BrowseEntry) => e.type === 'directory'))
+
+      if (data) {
+        setCurrentPath(data.path)
+        setParentPath(data.parent)
+        setEntries(data.entries.filter((e: BrowseEntry) => e.type === 'directory'))
+      }
     } catch {
       setError('Failed to connect to server')
     } finally {

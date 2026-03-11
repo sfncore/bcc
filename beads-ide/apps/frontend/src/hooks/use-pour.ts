@@ -2,10 +2,10 @@ import type { BurnRequest, BurnResult, PourRequest, PourResult } from '@beads-id
 /**
  * Hook for pouring formulas and managing molecule lifecycle.
  * Provides pour (create) and burn (rollback) operations.
+ * Uses centralized API client for connection state tracking and error classification.
  */
 import { useCallback, useState } from 'react'
-
-const API_BASE = '' // Use relative URLs for Vite proxy
+import { apiPost } from '../lib/api'
 
 /** Return value of the pour hook */
 export interface UsePourReturn {
@@ -26,46 +26,6 @@ export interface UsePourReturn {
 }
 
 /**
- * Pour a formula via the backend API.
- */
-async function pourFormula(request: PourRequest): Promise<PourResult> {
-  const response = await fetch(`${API_BASE}/api/pour`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(request),
-  })
-
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Pour request failed: ${response.status} ${text}`)
-  }
-
-  return response.json()
-}
-
-/**
- * Burn a molecule via the backend API.
- */
-async function burnMolecule(request: BurnRequest): Promise<BurnResult> {
-  const response = await fetch(`${API_BASE}/api/burn`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(request),
-  })
-
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Burn request failed: ${response.status} ${text}`)
-  }
-
-  return response.json()
-}
-
-/**
  * Hook for pouring formulas and managing molecule lifecycle.
  *
  * @returns Pour operations, state, and error handling
@@ -80,13 +40,25 @@ export function usePour(): UsePourReturn {
     setError(null)
 
     try {
-      const pourResult = await pourFormula({ ...request, dry_run: false })
+      const fullRequest: PourRequest = { ...request, dry_run: false }
+      const { data, error: apiError } = await apiPost<PourResult, PourRequest>(
+        '/api/pour',
+        fullRequest
+      )
+
+      if (apiError) {
+        const pourError = new Error(apiError.details || apiError.message)
+        setError(pourError)
+        throw pourError
+      }
+
+      const pourResult = data as PourResult
       setResult(pourResult)
       return pourResult
     } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err))
-      setError(error)
-      throw error
+      const pourError = err instanceof Error ? err : new Error(String(err))
+      setError(pourError)
+      throw pourError
     } finally {
       setIsLoading(false)
     }
@@ -98,13 +70,25 @@ export function usePour(): UsePourReturn {
       setError(null)
 
       try {
-        const pourResult = await pourFormula({ ...request, dry_run: true })
+        const fullRequest: PourRequest = { ...request, dry_run: true }
+        const { data, error: apiError } = await apiPost<PourResult, PourRequest>(
+          '/api/pour',
+          fullRequest
+        )
+
+        if (apiError) {
+          const pourError = new Error(apiError.details || apiError.message)
+          setError(pourError)
+          throw pourError
+        }
+
+        const pourResult = data as PourResult
         setResult(pourResult)
         return pourResult
       } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err))
-        setError(error)
-        throw error
+        const pourError = err instanceof Error ? err : new Error(String(err))
+        setError(pourError)
+        throw pourError
       } finally {
         setIsLoading(false)
       }
@@ -117,17 +101,29 @@ export function usePour(): UsePourReturn {
     setError(null)
 
     try {
-      const burnResult = await burnMolecule({
+      const burnRequest: BurnRequest = {
         molecule_id: moleculeId,
         force,
         dry_run: false,
-      })
+      }
+      const { data, error: apiError } = await apiPost<BurnResult, BurnRequest>(
+        '/api/burn',
+        burnRequest
+      )
+
+      if (apiError) {
+        const burnError = new Error(apiError.details || apiError.message)
+        setError(burnError)
+        throw burnError
+      }
+
+      const burnResult = data as BurnResult
       setResult(burnResult)
       return burnResult
     } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err))
-      setError(error)
-      throw error
+      const burnError = err instanceof Error ? err : new Error(String(err))
+      setError(burnError)
+      throw burnError
     } finally {
       setIsLoading(false)
     }

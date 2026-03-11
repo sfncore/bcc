@@ -1,9 +1,9 @@
 /**
  * Hook for loading formula file content from the backend.
+ * Uses centralized API client for connection state tracking and error classification.
  */
 import { useCallback, useEffect, useState } from 'react'
-
-const API_BASE = '' // Use relative URLs for Vite proxy
+import { apiFetch } from '../lib/api'
 
 /** Response from the formula read endpoint */
 interface FormulaReadResponse {
@@ -59,20 +59,20 @@ export function useFormulaContent(formulaName: string | null): UseFormulaContent
     setError(null)
 
     try {
-      const response = await fetch(`${API_BASE}/api/formulas/${encodeURIComponent(formulaName)}`)
+      const { data, error: apiError } = await apiFetch<FormulaReadResponse>(
+        `/api/formulas/${encodeURIComponent(formulaName)}`
+      )
 
-      if (!response.ok) {
-        throw new Error(`Failed to load formula: ${response.status}`)
+      if (apiError) {
+        throw new Error(apiError.details || apiError.message)
       }
 
-      const data: FormulaReadResponse = await response.json()
-
-      if (!data.ok) {
+      if (data && !data.ok) {
         throw new Error(data.error || 'Unknown error')
       }
 
-      setContent(data.content || '')
-      setPath(data.path || null)
+      setContent(data?.content || '')
+      setPath(data?.path || null)
     } catch (err) {
       setError(err instanceof Error ? err : new Error(String(err)))
       setContent('')
