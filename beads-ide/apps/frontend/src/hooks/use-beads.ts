@@ -67,9 +67,6 @@ export function useBeads(filters: BeadFilters = {}): UseBeadsReturn {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
 
-  // Serialize filters for dependency tracking
-  const filterKey = JSON.stringify(filters)
-
   const doFetch = useCallback(async () => {
     setIsLoading(true)
     setError(null)
@@ -85,8 +82,7 @@ export function useBeads(filters: BeadFilters = {}): UseBeadsReturn {
     } finally {
       setIsLoading(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterKey])
+  }, [filters])
 
   useEffect(() => {
     doFetch()

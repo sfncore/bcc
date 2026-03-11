@@ -68,10 +68,10 @@ export function BeadStatusBadge({ status }: BeadStatusBadgeProps) {
   }
 
   return (
-    <span style={style} role="status" aria-label={`Status: ${config.label}`}>
+    <output style={style} aria-label={`Status: ${config.label}`}>
       <span aria-hidden="true">{config.icon}</span>
       {config.label}
-    </span>
+    </output>
   )
 }
 
