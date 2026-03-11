@@ -25,10 +25,17 @@ export {
   type WorkflowDepType,
 } from './wave.js'
 
-// Bead API types
+// Core domain types — bead types matching bd CLI JSON output
 export type {
   BeadStatus,
+  BeadBuiltinType,
+  BeadCustomType,
   BeadType,
+  WorkflowDependencyType,
+  AssociationDependencyType,
+  GraphDependencyType,
+  EntityDependencyType,
+  OtherDependencyType,
   DependencyType,
   BeadDependency,
   BeadDependent,
@@ -38,7 +45,23 @@ export type {
   BeadShowResponse,
 } from './types.js'
 
-// Graph metrics and visualization types
+// Core domain types — formula source types from docs/formulas.md
+export type {
+  FormulaType,
+  FormulaPhase,
+  VarDef,
+  Gate,
+  LoopSpec,
+  OnCompleteSpec,
+  BondPoint,
+  ComposeRules,
+  Step,
+  AdviceRule,
+  Pointcut,
+  FormulaSource,
+} from './types.js'
+
+// IDE-specific types — graph metrics and visualization
 export type {
   GraphNode,
   GraphEdge,
@@ -62,6 +85,7 @@ export type {
   CookResult,
   CookRequest,
   // Formula list API types
+  FormulaFile,
   Formula,
   FormulaListItem,
   FormulaListResponse,
@@ -100,4 +124,11 @@ export type {
   WorkspaceOpenResult,
   WorkspaceInitResult,
   WorkspaceStateResult,
+  // Generic API types
+  ApiResponse,
+  // CLI invocation types
+  CliInvocation,
+  // Session & config types
+  SessionState,
+  BeadsIDEConfig,
 } from './ide-types.js'

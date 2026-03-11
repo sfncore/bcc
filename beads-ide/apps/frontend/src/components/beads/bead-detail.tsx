@@ -699,10 +699,7 @@ export function BeadDetail({ bead, onClose, isLoading }: BeadDetailProps) {
                   <div style={sectionStyle}>
                     <div style={sectionHeaderStyle}>Blocked By ({bead.dependencies.length})</div>
                     {bead.dependencies.map((dep) => (
-                      <div key={dep.depends_on_id} style={dependencyCardStyle}>
-                        <div style={dependencyTitleStyle}>{dep.depends_on_id}</div>
-                        <div style={dependencyMetaStyle}>{dep.type}</div>
-                      </div>
+                      <DependencyCard key={dep.id} dep={dep} />
                     ))}
                   </div>
                 )}

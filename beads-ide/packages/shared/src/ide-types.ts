@@ -255,7 +255,7 @@ export interface CookRequest {
 // ============================================================================
 
 /** A formula file discovered in a search path */
-export interface Formula {
+export interface FormulaFile {
   /** Formula name (without extension) */
   name: string
   /** Full path to the formula file */
@@ -266,14 +266,17 @@ export interface Formula {
   searchPathLabel: string
 }
 
-/** Alias for Formula used in list API responses */
-export type FormulaListItem = Formula
+/** @deprecated Use FormulaFile instead */
+export type Formula = FormulaFile
+
+/** Alias for FormulaFile used in list API responses */
+export type FormulaListItem = FormulaFile
 
 /** Successful formula list response */
 export interface FormulaListResponse {
   ok: true
   /** Formulas grouped by search path */
-  formulas: Formula[]
+  formulas: FormulaFile[]
   /** Total count of formulas */
   count: number
   /** Search paths that were checked */
@@ -606,3 +609,59 @@ export type WorkspaceInitResult = WorkspaceInitResponse | WorkspaceError
 
 /** Union type for workspace state endpoint */
 export type WorkspaceStateResult = WorkspaceStateResponse | WorkspaceError
+
+// ============================================================================
+// Generic API Types
+// ============================================================================
+
+/** Generic typed API response envelope */
+export interface ApiResponse<T> {
+  ok: boolean
+  data?: T
+  error?: string
+  code?: string
+}
+
+// ============================================================================
+// CLI Invocation Types
+// ============================================================================
+
+/** Result of a CLI command invocation */
+export interface CliInvocation {
+  /** Standard output from the command */
+  stdout: string
+  /** Standard error from the command */
+  stderr: string
+  /** Process exit code */
+  exitCode: number
+}
+
+// ============================================================================
+// Session & Configuration Types
+// ============================================================================
+
+/** Current IDE session state */
+export interface SessionState {
+  /** Whether the backend is connected */
+  connected: boolean
+  /** Current workspace root path */
+  workspaceRoot?: string
+  /** bd CLI version */
+  bdVersion?: string
+  /** Whether bv (graph tool) is available */
+  bvAvailable: boolean
+}
+
+/** Beads IDE configuration */
+export interface BeadsIDEConfig {
+  /** Backend server port */
+  port: number
+  /** Backend server host */
+  host: string
+  /** Formula search paths */
+  formulaSearchPaths: string[]
+  /** Default CLI timeout in milliseconds */
+  cliTimeout: number
+  /** Cook CLI timeout in milliseconds */
+  cookTimeout: number
+}
