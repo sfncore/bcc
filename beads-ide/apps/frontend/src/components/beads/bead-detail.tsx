@@ -641,6 +641,26 @@ export function BeadDetail({ bead, onClose, isLoading }: BeadDetailProps) {
                   </div>
                 )}
 
+                {/* Design */}
+                {bead.design && (
+                  <div style={sectionStyle}>
+                    <div style={sectionHeaderStyle}>Design</div>
+                    <div style={sectionContentStyle}>
+                      <MarkdownContent content={bead.design} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Notes */}
+                {bead.notes && (
+                  <div style={sectionStyle}>
+                    <div style={sectionHeaderStyle}>Notes</div>
+                    <div style={sectionContentStyle}>
+                      <MarkdownContent content={bead.notes} />
+                    </div>
+                  </div>
+                )}
+
                 {/* Labels */}
                 {bead.labels && bead.labels.length > 0 && (
                   <div style={sectionStyle}>

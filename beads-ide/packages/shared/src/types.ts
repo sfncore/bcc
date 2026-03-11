@@ -126,6 +126,9 @@ export interface BeadFull {
   updated_at: string
   notes?: string
 
+  /** Design notes / structured findings */
+  design?: string
+
   /** Parent bead ID (present in show output) */
   parent?: string
 
