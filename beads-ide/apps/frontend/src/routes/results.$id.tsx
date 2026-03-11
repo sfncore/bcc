@@ -5,6 +5,7 @@ import type { GraphEdge, GraphNode } from '@beads-ide/shared'
  */
 import { createFileRoute } from '@tanstack/react-router'
 import { type CSSProperties, useCallback, useMemo, useState } from 'react'
+import { BeadList } from '../components/beads/bead-list'
 import { GraphView, WaveView } from '../components/results'
 
 // --- Types ---
@@ -83,147 +84,11 @@ const emptyStyle: CSSProperties = {
   gap: '8px',
 }
 
-const listContainerStyle: CSSProperties = {
-  height: '100%',
-  overflow: 'auto',
-  padding: '16px',
-}
-
-const listItemStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '12px',
-  padding: '12px 16px',
-  marginBottom: '8px',
-  backgroundColor: '#252526',
-  borderRadius: '6px',
-  border: '1px solid #3c3c3c',
-  cursor: 'pointer',
-  transition: 'border-color 0.15s ease',
-}
-
 // --- Route Definition ---
 
 export const Route = createFileRoute('/results/$id')({
   component: ResultsPage,
 })
-
-// --- List View Component ---
-
-interface ListViewProps {
-  nodes: GraphNode[]
-  onBeadClick?: (beadId: string) => void
-  onBeadDoubleClick?: (beadId: string) => void
-}
-
-/** Simple list view of beads */
-function ListView({ nodes, onBeadClick, onBeadDoubleClick }: ListViewProps) {
-  const getStatusColor = (status: string): string => {
-    switch (status.toLowerCase()) {
-      case 'done':
-      case 'completed':
-      case 'closed':
-        return '#89d185'
-      case 'in_progress':
-      case 'active':
-        return '#007acc'
-      case 'blocked':
-        return '#f14c4c'
-      default:
-        return '#555'
-    }
-  }
-
-  const getStatusIcon = (status: string): string => {
-    switch (status.toLowerCase()) {
-      case 'done':
-      case 'completed':
-      case 'closed':
-        return '●'
-      case 'in_progress':
-      case 'active':
-        return '◐'
-      case 'blocked':
-        return '⊘'
-      default:
-        return '○'
-    }
-  }
-
-  return (
-    <div style={listContainerStyle}>
-      <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '12px' }}>
-        {nodes.length} {nodes.length === 1 ? 'bead' : 'beads'}
-      </div>
-      {nodes.map((node) => (
-        <button
-          key={node.id}
-          type="button"
-          style={{ ...listItemStyle, textAlign: 'left', width: '100%' }}
-          onClick={() => onBeadClick?.(node.id)}
-          onDoubleClick={() => onBeadDoubleClick?.(node.id)}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = '#007acc'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = '#3c3c3c'
-          }}
-        >
-          <span
-            style={{
-              width: '24px',
-              height: '24px',
-              borderRadius: '4px',
-              backgroundColor: getStatusColor(node.status),
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '14px',
-              color: node.status.toLowerCase() === 'blocked' ? '#fff' : '#000',
-              flexShrink: 0,
-            }}
-            aria-hidden="true"
-          >
-            {getStatusIcon(node.status)}
-          </span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: '13px',
-                fontWeight: 500,
-                color: '#e5e5e5',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {node.title}
-            </div>
-            <div style={{ fontSize: '11px', fontFamily: 'monospace', color: '#6b7280' }}>
-              {node.id}
-            </div>
-          </div>
-          {node.type && (
-            <span
-              style={{
-                fontSize: '10px',
-                color: '#9ca3af',
-                padding: '2px 6px',
-                backgroundColor: '#374151',
-                borderRadius: '4px',
-              }}
-            >
-              {node.type}
-            </span>
-          )}
-          {node.priority !== undefined && (
-            <span style={{ fontSize: '11px', color: '#9ca3af' }}>P{node.priority}</span>
-          )}
-        </button>
-      ))}
-    </div>
-  )
-}
 
 // --- Main Component ---
 
@@ -353,13 +218,7 @@ function ResultsPage() {
 
       {/* View content */}
       <div id="results-view" role="tabpanel" style={contentStyle}>
-        {viewMode === 'list' && (
-          <ListView
-            nodes={nodes}
-            onBeadClick={handleBeadClick}
-            onBeadDoubleClick={handleBeadDoubleClick}
-          />
-        )}
+        {viewMode === 'list' && <BeadList onBeadClick={handleBeadClick} />}
         {viewMode === 'wave' && (
           <WaveView
             nodes={nodes}
