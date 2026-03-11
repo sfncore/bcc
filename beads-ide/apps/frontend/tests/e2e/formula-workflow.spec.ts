@@ -11,6 +11,9 @@ import { expect, test } from './fixtures'
  * All tests use mocked CLI responses to avoid database dependency in CI.
  */
 
+// Platform-aware modifier key: Ctrl on Linux/Windows, Meta on Mac
+const MOD_KEY = process.platform === 'darwin' ? 'Meta' : 'Control'
+
 test.describe('Formula Edit -> Cook -> Preview Flow', () => {
   test.describe('Formula Loading', () => {
     test('should load and display formula content', async ({ page, apiMock }) => {
@@ -88,18 +91,38 @@ test.describe('Formula Edit -> Cook -> Preview Flow', () => {
     })
 
     test('should display cooking state while processing', async ({ page, apiMock }) => {
+      // Override cook with a delayed response so the loading state is visible
+      await page.unroute(/\/api\/cook$/)
+      await page.route(/\/api\/cook$/, async (route) => {
+        await new Promise((r) => setTimeout(r, 1000))
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ok: true,
+            formula: 'test-simple',
+            version: 1,
+            type: 'workflow',
+            phase: 'liquid',
+            steps: [{ id: 'step-1', title: 'First step', description: 'Do the first thing', priority: 2 }],
+            vars: { project_name: { description: 'Name of the project', required: true } },
+          }),
+        })
+      })
       await page.goto('/formula/test-simple')
-      await page.waitForLoadState('networkidle')
+
+      // Wait for the Cook Preview button to appear (formula loaded)
+      const cookButton = page.getByRole('button', { name: 'Cook Preview' })
+      await expect(cookButton).toBeVisible()
 
       // Click cook and check loading state
-      const cookButton = page.getByRole('button', { name: 'Cook Preview' })
       await cookButton.click()
 
-      // Button should show cooking state
+      // Should show cooking state while the delayed response is pending
       await expect(page.getByText('Cooking...')).toBeVisible()
 
-      // Wait for result
-      await page.waitForLoadState('networkidle')
+      // Wait for result to finish
+      await expect(page.getByText('Cooking...')).not.toBeVisible({ timeout: 5000 })
     })
 
     test('should show variables panel when formula has vars', async ({ page, apiMock }) => {
@@ -111,8 +134,9 @@ test.describe('Formula Edit -> Cook -> Preview Flow', () => {
       await page.waitForLoadState('networkidle')
 
       // Should show variables panel with var definitions
-      await expect(page.getByText('project_name')).toBeVisible()
-      await expect(page.getByText('owner')).toBeVisible()
+      // Scope to textbox inputs to avoid matching CodeMirror editor tokens
+      await expect(page.getByRole('textbox', { name: 'project_name' })).toBeVisible()
+      await expect(page.getByRole('textbox', { name: 'owner' })).toBeVisible()
     })
 
     test('should allow editing variable values', async ({ page, apiMock }) => {
@@ -171,7 +195,7 @@ test.describe('Formula Edit -> Cook -> Preview Flow', () => {
 
       // Dialog should open
       await expect(page.getByRole('dialog')).toBeVisible()
-      await expect(page.getByText('Dispatch Formula')).toBeVisible()
+      await expect(page.getByText('Sling Formula')).toBeVisible()
     })
 
     test('should close sling dialog on cancel', async ({ page, apiMock }) => {
@@ -229,7 +253,7 @@ test.describe('Formula Workflow', () => {
       await page.waitForLoadState('networkidle')
 
       // Press Cmd+K (or Ctrl+K on non-Mac)
-      await page.keyboard.press('Meta+k')
+      await page.keyboard.press(`${MOD_KEY}+k`)
 
       // Command palette should be visible
       await expect(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible()
@@ -241,7 +265,7 @@ test.describe('Formula Workflow', () => {
       await page.waitForLoadState('networkidle')
 
       // Open palette
-      await page.keyboard.press('Meta+k')
+      await page.keyboard.press(`${MOD_KEY}+k`)
       await expect(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible()
 
       // Close with Escape
@@ -254,7 +278,7 @@ test.describe('Formula Workflow', () => {
       await page.waitForLoadState('networkidle')
 
       // Open palette
-      await page.keyboard.press('Meta+k')
+      await page.keyboard.press(`${MOD_KEY}+k`)
 
       // Type to filter
       await page.getByRole('combobox', { name: 'Search commands' }).fill('graph')
@@ -270,7 +294,7 @@ test.describe('Formula Workflow', () => {
       await page.waitForLoadState('networkidle')
 
       // Open palette
-      await page.keyboard.press('Meta+k')
+      await page.keyboard.press(`${MOD_KEY}+k`)
 
       // First item should be selected by default
       const firstItem = page.locator('button[aria-selected="true"]').first()
@@ -292,7 +316,7 @@ test.describe('Formula Workflow', () => {
       await expect(page.getByText('Current view: list')).toBeVisible()
 
       // Open palette and search for graph view
-      await page.keyboard.press('Meta+k')
+      await page.keyboard.press(`${MOD_KEY}+k`)
       await page.getByRole('combobox', { name: 'Search commands' }).fill('graph')
 
       // Press Enter to select
@@ -308,7 +332,7 @@ test.describe('Formula Workflow', () => {
       await page.waitForLoadState('networkidle')
 
       // Open palette and search for wave view
-      await page.keyboard.press('Meta+k')
+      await page.keyboard.press(`${MOD_KEY}+k`)
       await page.getByRole('combobox', { name: 'Search commands' }).fill('wave')
       await page.keyboard.press('Enter')
 
@@ -320,13 +344,13 @@ test.describe('Formula Workflow', () => {
       await page.waitForLoadState('networkidle')
 
       // First switch to graph
-      await page.keyboard.press('Meta+k')
+      await page.keyboard.press(`${MOD_KEY}+k`)
       await page.getByRole('combobox', { name: 'Search commands' }).fill('graph')
       await page.keyboard.press('Enter')
       await expect(page.getByText('Current view: graph')).toBeVisible()
 
       // Then switch back to list
-      await page.keyboard.press('Meta+k')
+      await page.keyboard.press(`${MOD_KEY}+k`)
       await page.getByRole('combobox', { name: 'Search commands' }).fill('list')
       await page.keyboard.press('Enter')
       await expect(page.getByText('Current view: list')).toBeVisible()
@@ -342,19 +366,19 @@ test.describe('Formula Workflow', () => {
       await expect(page.getByText('Current view: list')).toBeVisible()
 
       // Switch to graph
-      await page.keyboard.press('Meta+k')
+      await page.keyboard.press(`${MOD_KEY}+k`)
       await page.getByRole('combobox', { name: 'Search commands' }).fill('graph')
       await page.keyboard.press('Enter')
       await expect(page.getByText('Current view: graph')).toBeVisible()
 
       // Switch to wave
-      await page.keyboard.press('Meta+k')
+      await page.keyboard.press(`${MOD_KEY}+k`)
       await page.getByRole('combobox', { name: 'Search commands' }).fill('wave')
       await page.keyboard.press('Enter')
       await expect(page.getByText('Current view: wave')).toBeVisible()
 
       // Switch back to list
-      await page.keyboard.press('Meta+k')
+      await page.keyboard.press(`${MOD_KEY}+k`)
       await page.getByRole('combobox', { name: 'Search commands' }).fill('list')
       await page.keyboard.press('Enter')
       await expect(page.getByText('Current view: list')).toBeVisible()
@@ -365,7 +389,7 @@ test.describe('Formula Workflow', () => {
       await page.waitForLoadState('networkidle')
 
       // Switch to graph view
-      await page.keyboard.press('Meta+k')
+      await page.keyboard.press(`${MOD_KEY}+k`)
       await page.getByRole('combobox', { name: 'Search commands' }).fill('graph')
       await page.keyboard.press('Enter')
       await expect(page.getByText('Current view: graph')).toBeVisible()
@@ -380,7 +404,7 @@ test.describe('Formula Workflow', () => {
       await page.goto('/')
       await page.waitForLoadState('networkidle')
 
-      await page.keyboard.press('Meta+k')
+      await page.keyboard.press(`${MOD_KEY}+k`)
 
       // Should show navigation hints
       await expect(page.getByText('Navigate')).toBeVisible()
@@ -392,7 +416,7 @@ test.describe('Formula Workflow', () => {
       await page.goto('/')
       await page.waitForLoadState('networkidle')
 
-      await page.keyboard.press('Meta+k')
+      await page.keyboard.press(`${MOD_KEY}+k`)
 
       // Should show shortcuts for actions
       // The Open Formula action has Mod+O shortcut
@@ -412,7 +436,7 @@ test.describe('Results View', () => {
       const views = ['graph', 'wave', 'list']
 
       for (const view of views) {
-        await page.keyboard.press('Meta+k')
+        await page.keyboard.press(`${MOD_KEY}+k`)
         await page.getByRole('combobox', { name: 'Search commands' }).fill(view)
         await page.keyboard.press('Enter')
         await expect(page.getByText(`Current view: ${view}`)).toBeVisible()
@@ -427,7 +451,7 @@ test.describe('Performance', () => {
     await page.waitForLoadState('networkidle')
 
     const startTime = Date.now()
-    await page.keyboard.press('Meta+k')
+    await page.keyboard.press(`${MOD_KEY}+k`)
     await expect(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible()
     const endTime = Date.now()
 
@@ -441,7 +465,7 @@ test.describe('Performance', () => {
 
     // Measure view switch time
     const startTime = Date.now()
-    await page.keyboard.press('Meta+k')
+    await page.keyboard.press(`${MOD_KEY}+k`)
     await page.getByRole('combobox', { name: 'Search commands' }).fill('graph')
     await page.keyboard.press('Enter')
     await expect(page.getByText('Current view: graph')).toBeVisible()

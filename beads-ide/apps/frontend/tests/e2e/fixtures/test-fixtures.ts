@@ -414,6 +414,108 @@ export class ApiMock {
       }
     })
 
+    // Mock workspace endpoint (GET returns no-root, POST returns success)
+    await this.page.route(/\/api\/workspace$/, async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 404,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: false, error: 'No workspace root configured', code: 'NO_ROOT' }),
+        })
+      } else {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ ok: true }),
+        })
+      }
+    })
+
+    // Mock workspace open/init endpoints
+    await this.page.route(/\/api\/workspace\/(open|init)$/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      })
+    })
+
+    // Mock tree endpoint
+    await this.page.route(/\/api\/tree$/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          root: '/test/workspace',
+          nodes: [
+            {
+              name: 'formulas',
+              path: 'formulas',
+              type: 'directory',
+              children: Object.values(this.formulas).map((f) => ({
+                name: `${f.name}.formula.toml`,
+                path: f.path,
+                type: 'formula',
+                formulaName: f.name,
+              })),
+            },
+          ],
+          totalCount: Object.keys(this.formulas).length,
+          truncated: false,
+        }),
+      })
+    })
+
+    // Mock browse endpoint
+    await this.page.route(/\/api\/browse/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          path: '/test',
+          parent: '/',
+          entries: [{ name: 'workspace', path: '/test/workspace', type: 'directory' }],
+        }),
+      })
+    })
+
+    // Mock pour endpoint
+    await this.page.route(/\/api\/pour$/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          molecule_id: 'test-mol-1',
+          beads_created: 3,
+        }),
+      })
+    })
+
+    // Mock sling endpoint
+    await this.page.route(/\/api\/sling$/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          dispatched: true,
+          target: 'test-polecat',
+        }),
+      })
+    })
+
+    // Mock burn endpoint
+    await this.page.route(/\/api\/burn$/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ok: true }),
+      })
+    })
+
     // Mock graph metrics
     await this.page.route(/\/api\/graph\/metrics$/, async (route) => {
       await route.fulfill({
