@@ -9,10 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as BeadsRouteImport } from './routes/beads'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ResultsIdRouteImport } from './routes/results.$id'
 import { Route as FormulaNameRouteImport } from './routes/formula.$name'
 
+const BeadsRoute = BeadsRouteImport.update({
+  id: '/beads',
+  path: '/beads',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -31,36 +37,47 @@ const FormulaNameRoute = FormulaNameRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/beads': typeof BeadsRoute
   '/formula/$name': typeof FormulaNameRoute
   '/results/$id': typeof ResultsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/beads': typeof BeadsRoute
   '/formula/$name': typeof FormulaNameRoute
   '/results/$id': typeof ResultsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/beads': typeof BeadsRoute
   '/formula/$name': typeof FormulaNameRoute
   '/results/$id': typeof ResultsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/formula/$name' | '/results/$id'
+  fullPaths: '/' | '/beads' | '/formula/$name' | '/results/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/formula/$name' | '/results/$id'
-  id: '__root__' | '/' | '/formula/$name' | '/results/$id'
+  to: '/' | '/beads' | '/formula/$name' | '/results/$id'
+  id: '__root__' | '/' | '/beads' | '/formula/$name' | '/results/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BeadsRoute: typeof BeadsRoute
   FormulaNameRoute: typeof FormulaNameRoute
   ResultsIdRoute: typeof ResultsIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/beads': {
+      id: '/beads'
+      path: '/beads'
+      fullPath: '/beads'
+      preLoaderRoute: typeof BeadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -87,6 +104,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BeadsRoute: BeadsRoute,
   FormulaNameRoute: FormulaNameRoute,
   ResultsIdRoute: ResultsIdRoute,
 }

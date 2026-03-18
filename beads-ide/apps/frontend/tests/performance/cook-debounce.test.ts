@@ -9,221 +9,221 @@
  * 2. Rapid changes only trigger one cook after 500ms
  * 3. Manual cook() bypasses the debounce
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 /** Default debounce delay from useCook */
-const DEFAULT_DEBOUNCE_MS = 500
+const DEFAULT_DEBOUNCE_MS = 500;
 
-describe('Cook Debounce Behavior', () => {
+describe("Cook Debounce Behavior", () => {
   beforeEach(() => {
-    vi.useFakeTimers()
-  })
+    vi.useFakeTimers();
+  });
 
   afterEach(() => {
-    vi.restoreAllMocks()
-  })
+    vi.restoreAllMocks();
+  });
 
-  describe('Debounce Timing', () => {
-    it('debounce delays execution by 500ms', async () => {
-      const callback = vi.fn()
-      let timeoutId: ReturnType<typeof setTimeout> | undefined
+  describe("Debounce Timing", () => {
+    it("debounce delays execution by 500ms", async () => {
+      const callback = vi.fn();
+      let timeoutId: number | undefined;
 
       // Simulate debounced function
       const debouncedFn = () => {
         if (timeoutId !== undefined) {
-          clearTimeout(timeoutId)
+          clearTimeout(timeoutId);
         }
-        timeoutId = setTimeout(callback, DEFAULT_DEBOUNCE_MS)
-      }
+        timeoutId = setTimeout(callback, DEFAULT_DEBOUNCE_MS);
+      };
 
-      debouncedFn()
+      debouncedFn();
 
       // Should not fire immediately
-      expect(callback).not.toHaveBeenCalled()
+      expect(callback).not.toHaveBeenCalled();
 
       // Should not fire at 499ms
-      vi.advanceTimersByTime(499)
-      expect(callback).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(499);
+      expect(callback).not.toHaveBeenCalled();
 
       // Should fire at 500ms
-      vi.advanceTimersByTime(1)
-      expect(callback).toHaveBeenCalledTimes(1)
-    })
+      vi.advanceTimersByTime(1);
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
 
-    it('rapid changes trigger only one cook after 500ms', async () => {
-      const callback = vi.fn()
-      let timeoutId: ReturnType<typeof setTimeout> | undefined
+    it("rapid changes trigger only one cook after 500ms", async () => {
+      const callback = vi.fn();
+      let timeoutId: number | undefined;
 
       const debouncedFn = () => {
         if (timeoutId !== undefined) {
-          clearTimeout(timeoutId)
+          clearTimeout(timeoutId);
         }
-        timeoutId = setTimeout(callback, DEFAULT_DEBOUNCE_MS)
-      }
+        timeoutId = setTimeout(callback, DEFAULT_DEBOUNCE_MS);
+      };
 
       // Simulate rapid typing (10 changes in 100ms)
       for (let i = 0; i < 10; i++) {
-        debouncedFn()
-        vi.advanceTimersByTime(10)
+        debouncedFn();
+        vi.advanceTimersByTime(10);
       }
 
       // Should not have fired yet (only 100ms elapsed since last call)
-      expect(callback).not.toHaveBeenCalled()
+      expect(callback).not.toHaveBeenCalled();
 
       // Advance to trigger debounce
-      vi.advanceTimersByTime(500)
-      expect(callback).toHaveBeenCalledTimes(1)
-    })
+      vi.advanceTimersByTime(500);
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
 
-    it('debounce resets on each input change', async () => {
-      const callback = vi.fn()
-      let timeoutId: ReturnType<typeof setTimeout> | undefined
+    it("debounce resets on each input change", async () => {
+      const callback = vi.fn();
+      let timeoutId: number | undefined;
 
       const debouncedFn = () => {
         if (timeoutId !== undefined) {
-          clearTimeout(timeoutId)
+          clearTimeout(timeoutId);
         }
-        timeoutId = setTimeout(callback, DEFAULT_DEBOUNCE_MS)
-      }
+        timeoutId = setTimeout(callback, DEFAULT_DEBOUNCE_MS);
+      };
 
-      debouncedFn()
-      vi.advanceTimersByTime(400) // 400ms elapsed
+      debouncedFn();
+      vi.advanceTimersByTime(400); // 400ms elapsed
 
-      debouncedFn() // Reset debounce
-      vi.advanceTimersByTime(400) // 400ms since reset
+      debouncedFn(); // Reset debounce
+      vi.advanceTimersByTime(400); // 400ms since reset
 
       // Should not have fired (only 400ms since last call)
-      expect(callback).not.toHaveBeenCalled()
+      expect(callback).not.toHaveBeenCalled();
 
-      vi.advanceTimersByTime(100) // Now 500ms since last call
-      expect(callback).toHaveBeenCalledTimes(1)
-    })
-  })
+      vi.advanceTimersByTime(100); // Now 500ms since last call
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
+  });
 
-  describe('Manual Cook Bypass', () => {
-    it('manual cook cancels pending debounce', async () => {
-      const callback = vi.fn()
-      let timeoutId: ReturnType<typeof setTimeout> | undefined
+  describe("Manual Cook Bypass", () => {
+    it("manual cook cancels pending debounce", async () => {
+      const callback = vi.fn();
+      let timeoutId: number | undefined;
 
       const debouncedFn = () => {
         if (timeoutId !== undefined) {
-          clearTimeout(timeoutId)
+          clearTimeout(timeoutId);
         }
-        timeoutId = setTimeout(callback, DEFAULT_DEBOUNCE_MS)
-      }
+        timeoutId = setTimeout(callback, DEFAULT_DEBOUNCE_MS);
+      };
 
       const manualCook = () => {
         if (timeoutId !== undefined) {
-          clearTimeout(timeoutId)
-          timeoutId = undefined
+          clearTimeout(timeoutId);
+          timeoutId = undefined;
         }
-        callback()
-      }
+        callback();
+      };
 
-      debouncedFn()
-      vi.advanceTimersByTime(200)
+      debouncedFn();
+      vi.advanceTimersByTime(200);
 
       // Manual cook should fire immediately
-      manualCook()
-      expect(callback).toHaveBeenCalledTimes(1)
+      manualCook();
+      expect(callback).toHaveBeenCalledTimes(1);
 
       // Original debounce should not fire again
-      vi.advanceTimersByTime(500)
-      expect(callback).toHaveBeenCalledTimes(1)
-    })
-  })
+      vi.advanceTimersByTime(500);
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
+  });
 
-  describe('Edge Cases', () => {
-    it('no cook when formula path is null', async () => {
-      const callback = vi.fn()
-      let timeoutId: ReturnType<typeof setTimeout> | undefined
+  describe("Edge Cases", () => {
+    it("no cook when formula path is null", async () => {
+      const callback = vi.fn();
+      let timeoutId: number | undefined;
 
       const debouncedFn = (formulaPath: string | null) => {
         if (!formulaPath) {
           // Clear any pending timeout and don't schedule new one
           if (timeoutId !== undefined) {
-            clearTimeout(timeoutId)
-            timeoutId = undefined
+            clearTimeout(timeoutId);
+            timeoutId = undefined;
           }
-          return
+          return;
         }
         if (timeoutId !== undefined) {
-          clearTimeout(timeoutId)
+          clearTimeout(timeoutId);
         }
-        timeoutId = setTimeout(callback, DEFAULT_DEBOUNCE_MS)
-      }
+        timeoutId = setTimeout(callback, DEFAULT_DEBOUNCE_MS);
+      };
 
-      debouncedFn(null)
-      vi.advanceTimersByTime(1000)
+      debouncedFn(null);
+      vi.advanceTimersByTime(1000);
 
-      expect(callback).not.toHaveBeenCalled()
-    })
+      expect(callback).not.toHaveBeenCalled();
+    });
 
-    it('cleanup on unmount cancels pending debounce', async () => {
-      const callback = vi.fn()
-      let timeoutId: ReturnType<typeof setTimeout> | undefined
+    it("cleanup on unmount cancels pending debounce", async () => {
+      const callback = vi.fn();
+      let timeoutId: number | undefined;
 
       const debouncedFn = () => {
         if (timeoutId !== undefined) {
-          clearTimeout(timeoutId)
+          clearTimeout(timeoutId);
         }
-        timeoutId = setTimeout(callback, DEFAULT_DEBOUNCE_MS)
-      }
+        timeoutId = setTimeout(callback, DEFAULT_DEBOUNCE_MS);
+      };
 
       const cleanup = () => {
         if (timeoutId !== undefined) {
-          clearTimeout(timeoutId)
-          timeoutId = undefined
+          clearTimeout(timeoutId);
+          timeoutId = undefined;
         }
-      }
+      };
 
-      debouncedFn()
-      vi.advanceTimersByTime(200)
+      debouncedFn();
+      vi.advanceTimersByTime(200);
 
       // Simulate component unmount
-      cleanup()
+      cleanup();
 
-      vi.advanceTimersByTime(500)
-      expect(callback).not.toHaveBeenCalled()
-    })
-  })
-})
+      vi.advanceTimersByTime(500);
+      expect(callback).not.toHaveBeenCalled();
+    });
+  });
+});
 
-describe('Debounce Performance', () => {
+describe("Debounce Performance", () => {
   beforeEach(() => {
-    vi.useFakeTimers()
-  })
+    vi.useFakeTimers();
+  });
 
   afterEach(() => {
-    vi.restoreAllMocks()
-  })
+    vi.restoreAllMocks();
+  });
 
-  it('handles high-frequency input without performance degradation', async () => {
-    const callback = vi.fn()
-    let timeoutId: ReturnType<typeof setTimeout> | undefined
-    let callCount = 0
+  it("handles high-frequency input without performance degradation", async () => {
+    const callback = vi.fn();
+    let timeoutId: number | undefined;
+    let callCount = 0;
 
     const debouncedFn = () => {
-      callCount++
+      callCount++;
       if (timeoutId !== undefined) {
-        clearTimeout(timeoutId)
+        clearTimeout(timeoutId);
       }
-      timeoutId = setTimeout(callback, DEFAULT_DEBOUNCE_MS)
-    }
+      timeoutId = setTimeout(callback, DEFAULT_DEBOUNCE_MS);
+    };
 
     // Simulate 1000 rapid changes (extreme typing scenario)
-    const start = performance.now()
+    const start = performance.now();
     for (let i = 0; i < 1000; i++) {
-      debouncedFn()
+      debouncedFn();
     }
-    const setupTime = performance.now() - start
+    const setupTime = performance.now() - start;
 
     // Setup should be nearly instant (< 50ms for 1000 calls)
-    expect(setupTime).toBeLessThan(50)
+    expect(setupTime).toBeLessThan(50);
 
     // Only one callback after debounce
-    vi.advanceTimersByTime(500)
-    expect(callback).toHaveBeenCalledTimes(1)
-    expect(callCount).toBe(1000)
-  })
-})
+    vi.advanceTimersByTime(500);
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callCount).toBe(1000);
+  });
+});

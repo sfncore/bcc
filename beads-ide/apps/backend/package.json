@@ -9,8 +9,8 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "biome lint src/",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vp test run",
+    "test:watch": "vp test"
   },
   "dependencies": {
     "@beads-ide/shared": "*",
@@ -20,6 +20,7 @@
   "devDependencies": {
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
-    "vitest": "^2.1.0"
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
   }
 }
