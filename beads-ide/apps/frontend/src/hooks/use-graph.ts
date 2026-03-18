@@ -115,12 +115,21 @@ async function fetchGraphFromBeads(): Promise<GraphData> {
   for (const bead of beads) {
     if (bead.dependencies) {
       for (const dep of bead.dependencies) {
-        // dep.id is the bead this one depends on, bead.id is the dependent
-        if (beadIds.has(dep.id)) {
+        // API returns raw dep format: { issue_id, depends_on_id, type }
+        // BeadDependency type has: { id, dependency_type }
+        // Handle both formats for compatibility
+        const rawDep = dep as unknown as {
+          depends_on_id?: string;
+          issue_id?: string;
+          type?: string;
+        };
+        const depOnId = rawDep.depends_on_id ?? dep.id;
+        const depType = rawDep.type ?? dep.dependency_type;
+        if (depOnId && beadIds.has(depOnId)) {
           edges.push({
-            from: dep.id,
-            to: bead.id,
-            type: dep.dependency_type,
+            from: depOnId,
+            to: rawDep.issue_id ?? bead.id,
+            type: depType,
           });
         }
       }
