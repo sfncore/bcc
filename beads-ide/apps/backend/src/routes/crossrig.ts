@@ -364,6 +364,197 @@ const crossrig = new Hono()
     }
   })
 
+  .get('/crossrig/convoy/:id/graph', async (c) => {
+    const convoyId = c.req.param('id')
+
+    try {
+      // 1. Look up convoy in HQ and get tracked bead IDs
+      const hqConn = await getConnection('hq')
+      const [convoyRows] = await hqConn.query(
+        'SELECT id, title, status, issue_type, priority FROM issues WHERE id = ?',
+        [convoyId],
+      )
+      const convoy = (convoyRows as any[])[0]
+      if (!convoy) {
+        await hqConn.end()
+        return c.json({ error: 'Convoy not found', code: 'NOT_FOUND' }, 404)
+      }
+
+      const [depRows] = await hqConn.query(
+        'SELECT depends_on_id, type FROM dependencies WHERE issue_id = ?',
+        [convoyId],
+      )
+      await hqConn.end()
+
+      const trackedIds = (depRows as any[]).map((d: any) => d.depends_on_id)
+      if (trackedIds.length === 0) {
+        return c.json({
+          convoy: { id: convoy.id, title: convoy.title, status: convoy.status },
+          nodes: [],
+          edges: [],
+          waves: [],
+          nodeCount: 0,
+          edgeCount: 0,
+          rigs: {},
+        })
+      }
+
+      // 2. Determine which rig database each bead lives in by prefix
+      const routes = loadRoutes()
+      const allDatabases = await getRigDatabases()
+      // Build prefix→db map from routes (prefix is like "op-" → db is "beads_op")
+      // Also try matching by raw prefix against bead IDs
+      const beadIdsByDb = new Map<string, string[]>()
+
+      for (const beadId of trackedIds) {
+        let matched = false
+        // Try each database name as a prefix
+        for (const db of allDatabases) {
+          // Check if bead ID starts with a known prefix
+          // Routes map has db name (without beads_ prefix) → path
+          // Bead IDs use the prefix from routes.jsonl (e.g., "op-" for beads_op)
+          const shortName = db.replace(/^beads_/, '')
+          if (beadId.startsWith(`${shortName}-`)) {
+            if (!beadIdsByDb.has(db)) beadIdsByDb.set(db, [])
+            beadIdsByDb.get(db)!.push(beadId)
+            matched = true
+            break
+          }
+        }
+        // Fallback: try HQ
+        if (!matched) {
+          if (!beadIdsByDb.has('hq')) beadIdsByDb.set('hq', [])
+          beadIdsByDb.get('hq')!.push(beadId)
+        }
+      }
+
+      // 3. Fetch full bead data and dependencies from each rig
+      const nodes: any[] = []
+      const edges: any[] = []
+      const rigStats: Record<string, number> = {}
+      const beadIdSet = new Set(trackedIds)
+
+      for (const [db, ids] of beadIdsByDb) {
+        let conn: mysql.Connection | null = null
+        try {
+          conn = await getConnection(db)
+          if (!(await hasTable(conn, 'issues'))) {
+            await conn.end()
+            continue
+          }
+
+          // Fetch issues by ID
+          const placeholders = ids.map(() => '?').join(',')
+          const [issueRows] = await conn.query(
+            `SELECT id, title, status, issue_type, priority, labels FROM issues WHERE id IN (${placeholders})`,
+            ids,
+          )
+
+          for (const issue of issueRows as any[]) {
+            nodes.push({
+              id: issue.id,
+              title: issue.title,
+              status: issue.status,
+              type: issue.issue_type,
+              priority: issue.priority,
+              labels: issue.labels ? (typeof issue.labels === 'string' ? JSON.parse(issue.labels) : issue.labels) : [],
+              _rig_db: db,
+            })
+          }
+          rigStats[db] = (issueRows as any[]).length
+
+          // Fetch dependencies between tracked beads
+          if (await hasTable(conn, 'dependencies')) {
+            const [depRows] = await conn.query(
+              `SELECT issue_id, depends_on_id, type FROM dependencies WHERE issue_id IN (${placeholders})`,
+              ids,
+            )
+            for (const dep of depRows as any[]) {
+              // Only include edges where both ends are in the convoy
+              if (beadIdSet.has(dep.depends_on_id)) {
+                edges.push({
+                  from: dep.depends_on_id,
+                  to: dep.issue_id,
+                  type: dep.type,
+                  _rig_db: db,
+                })
+              }
+            }
+          }
+
+          await conn.end()
+        } catch {
+          if (conn) await conn.end().catch(() => {})
+        }
+      }
+
+      // 4. Compute waves using simple topological layering
+      const inDegree = new Map<string, number>()
+      const adj = new Map<string, string[]>()
+      for (const node of nodes) {
+        inDegree.set(node.id, 0)
+        adj.set(node.id, [])
+      }
+      for (const edge of edges) {
+        if (inDegree.has(edge.to)) {
+          inDegree.set(edge.to, (inDegree.get(edge.to) ?? 0) + 1)
+        }
+        adj.get(edge.from)?.push(edge.to)
+      }
+
+      const waves: string[][] = []
+      const remaining = new Set(nodes.map((n: any) => n.id))
+
+      while (remaining.size > 0) {
+        // Find all nodes with in-degree 0 among remaining
+        const wave: string[] = []
+        for (const id of remaining) {
+          if ((inDegree.get(id) ?? 0) === 0) {
+            wave.push(id)
+          }
+        }
+        if (wave.length === 0) {
+          // Cycle detected — add all remaining as final wave
+          waves.push([...remaining])
+          break
+        }
+        waves.push(wave)
+        for (const id of wave) {
+          remaining.delete(id)
+          for (const next of adj.get(id) ?? []) {
+            if (remaining.has(next)) {
+              inDegree.set(next, (inDegree.get(next) ?? 0) - 1)
+            }
+          }
+        }
+      }
+
+      // Tag nodes with wave number
+      const nodeWaveMap = new Map<string, number>()
+      for (let i = 0; i < waves.length; i++) {
+        for (const id of waves[i]) {
+          nodeWaveMap.set(id, i + 1)
+        }
+      }
+      for (const node of nodes) {
+        node.wave = nodeWaveMap.get(node.id) ?? 0
+      }
+
+      return c.json({
+        convoy: { id: convoy.id, title: convoy.title, status: convoy.status },
+        nodes,
+        edges,
+        waves,
+        nodeCount: nodes.length,
+        edgeCount: edges.length,
+        rigs: rigStats,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      return c.json({ error: 'Convoy graph query failed', code: 'CROSSRIG_ERROR', details: message }, 500)
+    }
+  })
+
   .get('/crossrig/databases', async (c) => {
     try {
       const databases = await getRigDatabases()

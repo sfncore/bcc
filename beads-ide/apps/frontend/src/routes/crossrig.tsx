@@ -3,6 +3,7 @@ import type { BeadFull } from "@beads-ide/shared";
 import { type CSSProperties, useCallback, useMemo, useState } from "react";
 import { useCrossRigBeads } from "../hooks/use-crossrig-beads";
 import { useCrossRigGraph, getRigColor } from "../hooks/use-crossrig-graph";
+import { useConvoyGraph } from "../hooks/use-convoy-graph";
 import { BeadStatusBadge } from "../components/beads/bead-status-badge";
 import { GraphView } from "../components/results/graph-view";
 import { useBeadSelection } from "../contexts";
@@ -30,7 +31,7 @@ function emptyFilters(): CrossRigFilterState {
 }
 
 type GroupMode = "none" | "rig" | "type" | "status";
-type ViewMode = "list" | "graph";
+type ViewMode = "list" | "graph" | "convoy";
 
 // --- Styles ---
 
@@ -188,6 +189,20 @@ const rigLegendStyle: CSSProperties = {
   maxWidth: "400px",
 };
 
+const waveLegendStyle: CSSProperties = {
+  position: "absolute",
+  top: "10px",
+  left: "120px",
+  zIndex: 10,
+  backgroundColor: "rgba(30, 30, 30, 0.9)",
+  border: "1px solid #3c3c3c",
+  borderRadius: "6px",
+  padding: "8px 12px",
+  display: "flex",
+  gap: "12px",
+  alignItems: "center",
+};
+
 // --- Component ---
 
 function CrossRigPage() {
@@ -197,6 +212,7 @@ function CrossRigPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [searchText, setSearchText] = useState("");
   const [excludeNoise, setExcludeNoise] = useState(true);
+  const [selectedConvoyId, setSelectedConvoyId] = useState<string | null>(null);
 
   const { beads, count, rigStats, isLoading, error, refresh } = useCrossRigBeads({
     exclude_noise: excludeNoise,
@@ -206,6 +222,18 @@ function CrossRigPage() {
   const { graph, isLoading: graphLoading, error: graphError, refresh: refreshGraph } = useCrossRigGraph({
     exclude_noise: excludeNoise,
   });
+
+  const { graph: convoyGraph, isLoading: convoyLoading, error: convoyError, refresh: refreshConvoy } = useConvoyGraph(selectedConvoyId);
+
+  // Handle bead click — drill into convoys, open detail for others
+  const handleBeadClick = useCallback((bead: any) => {
+    if (bead.issue_type === "convoy") {
+      setSelectedConvoyId(bead.id);
+      setViewMode("convoy");
+    } else {
+      selectBead(bead.id);
+    }
+  }, [selectBead]);
 
   // Client-side filtering
   const filteredBeads = useMemo(() => {
@@ -269,35 +297,51 @@ function CrossRigPage() {
     filters.priorities.size > 0 ||
     filters.rigs.size > 0;
 
-  // Rig list for legend
-  const graphRigs = useMemo(() => {
-    if (!graph) return [];
-    return Object.keys(graph.rigs).sort();
-  }, [graph]);
-
   return (
     <div style={containerStyle}>
       {/* Header */}
       <div style={headerStyle}>
-        <h2 style={{ margin: 0, fontSize: "16px" }}>Cross-Rig Beads</h2>
+        {viewMode === "convoy" && selectedConvoyId ? (
+          <>
+            <button
+              type="button"
+              style={{ ...chipStyle(false), cursor: "pointer", fontSize: "13px" }}
+              onClick={() => { setViewMode("list"); setSelectedConvoyId(null); }}
+            >
+              &larr; Back
+            </button>
+            <h2 style={{ margin: 0, fontSize: "16px" }}>
+              Convoy: {convoyGraph?.convoy.title ?? selectedConvoyId}
+            </h2>
+            {convoyGraph && (
+              <span style={{ fontSize: "11px", color: "#888" }}>
+                {convoyGraph.nodeCount} beads &middot; {convoyGraph.waves.length} waves &middot; {Object.keys(convoyGraph.rigs).length} rigs
+              </span>
+            )}
+          </>
+        ) : (
+          <>
+            <h2 style={{ margin: 0, fontSize: "16px" }}>Cross-Rig Beads</h2>
 
-        {/* View mode toggle */}
-        <div style={{ display: "flex", gap: "2px", marginLeft: "8px" }}>
-          <button
-            type="button"
-            style={viewToggleBtnStyle(viewMode === "list")}
-            onClick={() => setViewMode("list")}
-          >
-            List
-          </button>
-          <button
-            type="button"
-            style={viewToggleBtnStyle(viewMode === "graph")}
-            onClick={() => setViewMode("graph")}
-          >
-            Graph
-          </button>
-        </div>
+            {/* View mode toggle */}
+            <div style={{ display: "flex", gap: "2px", marginLeft: "8px" }}>
+              <button
+                type="button"
+                style={viewToggleBtnStyle(viewMode === "list")}
+                onClick={() => setViewMode("list")}
+              >
+                List
+              </button>
+              <button
+                type="button"
+                style={viewToggleBtnStyle(viewMode === "graph")}
+                onClick={() => setViewMode("graph")}
+              >
+                Graph
+              </button>
+            </div>
+          </>
+        )}
 
         {viewMode === "list" && (
           <>
@@ -331,7 +375,7 @@ function CrossRigPage() {
 
         <button
           type="button"
-          onClick={viewMode === "graph" ? refreshGraph : refresh}
+          onClick={viewMode === "convoy" ? refreshConvoy : viewMode === "graph" ? refreshGraph : refresh}
           style={{ ...chipStyle(false), cursor: "pointer" }}
         >
           Refresh
@@ -422,7 +466,7 @@ function CrossRigPage() {
                   </div>
                 )}
                 {groupBeads.map((bead: any) => (
-                  <div key={bead.id} style={rowStyle} onClick={() => selectBead(bead.id)}>
+                  <div key={bead.id} style={rowStyle} onClick={() => handleBeadClick(bead)}>
                     <span style={rigBadgeStyle}>{bead._rig_db}</span>
                     <BeadStatusBadge status={bead.status} />
                     <span style={{ fontSize: "10px", color: "#666", minWidth: "32px" }}>
@@ -461,40 +505,82 @@ function CrossRigPage() {
                 density={graph.density}
                 onBeadClick={(id) => selectBead(id)}
               />
-              {/* Rig color legend */}
-              {graphRigs.length > 0 && (
-                <div style={rigLegendStyle}>
-                  <span style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                    Rigs:
-                  </span>
-                  {graphRigs.map((rig) => (
-                    <span
-                      key={rig}
-                      style={{
-                        fontSize: "11px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "4px",
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: "8px",
-                          height: "8px",
-                          borderRadius: "2px",
-                          backgroundColor: getRigColor(rig),
-                        }}
-                      />
-                      <span style={{ color: "#ccc" }}>{rig}</span>
-                      <span style={{ color: "#666" }}>({graph.rigs[rig]})</span>
-                    </span>
-                  ))}
-                </div>
-              )}
+              <RigLegend rigs={graph.rigs} />
             </>
           )}
         </div>
       )}
+
+      {viewMode === "convoy" && selectedConvoyId && (
+        <div style={graphContainerStyle}>
+          {convoyLoading && (
+            <div style={{ padding: "16px", color: "#888" }}>Loading convoy graph...</div>
+          )}
+          {convoyError && (
+            <div style={{ padding: "16px", color: "#f14c4c" }}>Error: {convoyError.message}</div>
+          )}
+          {convoyGraph && !convoyLoading && (
+            <>
+              <GraphView
+                nodes={convoyGraph.nodes}
+                edges={convoyGraph.edges}
+                density={convoyGraph.density}
+                onBeadClick={(id) => selectBead(id)}
+              />
+              <RigLegend rigs={convoyGraph.rigs} />
+              {/* Wave progress overlay */}
+              <div style={waveLegendStyle}>
+                <span style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  Waves:
+                </span>
+                {convoyGraph.waves.map((wave, i) => {
+                  const waveNodes = convoyGraph.nodes.filter((n) => n.wave === i + 1);
+                  const done = waveNodes.filter((n) => n.status === "closed").length;
+                  const total = waveNodes.length;
+                  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                  return (
+                    <span
+                      key={i}
+                      style={{ fontSize: "11px", display: "flex", alignItems: "center", gap: "4px" }}
+                    >
+                      <span style={{
+                        width: "18px", height: "18px", borderRadius: "50%",
+                        backgroundColor: pct === 100 ? "#22c55e" : pct > 0 ? "#f59e0b" : "#555",
+                        color: "#fff", fontSize: "9px", fontWeight: 700,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        {i + 1}
+                      </span>
+                      <span style={{ color: "#ccc" }}>{done}/{total}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Rig color legend overlay */
+function RigLegend({ rigs }: { rigs: Record<string, number> }) {
+  const rigNames = Object.keys(rigs).sort();
+  if (rigNames.length === 0) return null;
+
+  return (
+    <div style={rigLegendStyle}>
+      <span style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+        Rigs:
+      </span>
+      {rigNames.map((rig) => (
+        <span key={rig} style={{ fontSize: "11px", display: "flex", alignItems: "center", gap: "4px" }}>
+          <span style={{ width: "8px", height: "8px", borderRadius: "2px", backgroundColor: getRigColor(rig) }} />
+          <span style={{ color: "#ccc" }}>{rig}</span>
+          <span style={{ color: "#666" }}>({rigs[rig]})</span>
+        </span>
+      ))}
     </div>
   );
 }
