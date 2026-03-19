@@ -191,8 +191,8 @@ const rigLegendStyle: CSSProperties = {
 
 const waveLegendStyle: CSSProperties = {
   position: "absolute",
-  top: "10px",
-  left: "120px",
+  bottom: "50px",
+  left: "10px",
   zIndex: 10,
   backgroundColor: "rgba(30, 30, 30, 0.9)",
   border: "1px solid #3c3c3c",
