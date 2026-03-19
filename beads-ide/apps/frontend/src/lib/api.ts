@@ -4,8 +4,10 @@
  */
 import { toast } from 'sonner'
 
-/** API base URL - uses Vite proxy in development */
-export const API_BASE = ''
+/** API base URL - Vite proxy in dev, direct API subdomain in production */
+export const API_BASE = import.meta.env.PROD
+  ? 'https://api-bcc.startupfactory.services'
+  : ''
 
 /** Connection state for the backend */
 export type ConnectionState = 'connected' | 'disconnected' | 'degraded'

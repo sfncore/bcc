@@ -1,6 +1,7 @@
 import type { Placeholder } from '@beads-ide/shared'
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
+import { cors } from 'hono/cors'
 import { beads } from './routes/beads.js'
 import { crossrig } from './routes/crossrig.js'
 import { cook } from './routes/cook.js'
@@ -12,6 +13,13 @@ import { sling } from './routes/sling.js'
 import { workspace } from './routes/workspace.js'
 
 const app = new Hono()
+
+// CORS for production frontend (Cloudflare Pages)
+app.use('/api/*', cors({
+  origin: ['https://bcc.startupfactory.services', 'http://127.0.0.1:5173'],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowHeaders: ['Content-Type'],
+}))
 
 // Root endpoint
 app.get('/', (c) => {

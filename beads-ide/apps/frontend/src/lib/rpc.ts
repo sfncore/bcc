@@ -19,8 +19,12 @@ import type { AppType } from '@beads-ide/backend'
 import { hc } from 'hono/client'
 export type { InferResponseType, InferRequestType } from 'hono/client'
 
-// Create typed client — empty base URL uses Vite proxy (/api → localhost:3001)
-export const client = hc<AppType>('')
+// Vite proxy in dev, direct API subdomain in production
+const baseUrl = import.meta.env.PROD
+  ? 'https://api-bcc.startupfactory.services'
+  : ''
+
+export const client = hc<AppType>(baseUrl)
 
 // Convenience: direct access to /api/* routes
 export const api = client.api
