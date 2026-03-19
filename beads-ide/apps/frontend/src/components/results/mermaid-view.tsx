@@ -39,6 +39,7 @@ const svgContainerStyle: CSSProperties = {
   justifyContent: 'center',
   padding: '16px',
   overflow: 'auto',
+  minHeight: 0,
 }
 
 interface MermaidViewProps {
@@ -150,7 +151,8 @@ export function MermaidView({ mermaid, theme = 'dark' }: MermaidViewProps) {
         {svg && !loading && (
           <div
             dangerouslySetInnerHTML={{ __html: svg }}
-            style={{ maxWidth: '100%', maxHeight: '100%' }}
+            className="mermaid-svg-wrapper"
+            style={{ width: '100%', height: '100%' }}
           />
         )}
       </div>
