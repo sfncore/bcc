@@ -338,7 +338,7 @@ describe("GET /api/tree", () => {
     }
   });
 
-  it("returns tree with formula files", async () => {
+  it("returns tree with formula files from search paths", async () => {
     const formulasDir = join(tempDir, "formulas");
     mkdirSync(formulasDir);
     writeFileSync(join(formulasDir, "deploy.formula.toml"), '[formula]\nname = "deploy"');
@@ -362,31 +362,35 @@ describe("GET /api/tree", () => {
       expect(body.totalCount).toBe(3); // 1 dir + 2 formula files
       expect(body.truncated).toBe(false);
 
-      // Should have a formulas directory
-      const formulasNode = body.nodes.find((n) => n.name === "formulas");
-      expect(formulasNode).toBeDefined();
-      expect(formulasNode?.type).toBe("directory");
-      expect(formulasNode?.children).toHaveLength(2);
+      // Should have a labeled directory node for the search path
+      expect(body.nodes).toHaveLength(1);
+      const dirNode = body.nodes[0];
+      expect(dirNode.type).toBe("directory");
+      expect(dirNode.children).toHaveLength(2);
 
       // Formula files should have formulaName
-      const deployFormula = formulasNode?.children?.find((n) => n.name === "deploy.formula.toml");
+      const deployFormula = dirNode.children?.find((n) => n.name === "deploy.formula.toml");
       expect(deployFormula?.type).toBe("formula");
       expect(deployFormula?.formulaName).toBe("deploy");
 
-      const testFormula = formulasNode?.children?.find((n) => n.name === "test.formula.json");
+      const testFormula = dirNode.children?.find((n) => n.name === "test.formula.json");
       expect(testFormula?.type).toBe("formula");
       expect(testFormula?.formulaName).toBe("test");
     }
   });
 
-  it("prunes empty directories", async () => {
-    mkdirSync(join(tempDir, "empty-dir"));
-    mkdirSync(join(tempDir, "has-formulas"));
-    writeFileSync(join(tempDir, "has-formulas", "a.formula.toml"), "");
+  it("skips empty search paths", async () => {
+    // Empty dir in search paths should not appear
+    const emptyDir = join(tempDir, "empty-formulas");
+    mkdirSync(emptyDir);
+
+    const populatedDir = join(tempDir, "has-formulas");
+    mkdirSync(populatedDir);
+    writeFileSync(join(populatedDir, "a.formula.toml"), "");
 
     vi.spyOn(config, "getWorkspaceRoot").mockReturnValue(tempDir);
     vi.spyOn(config, "getConfig").mockReturnValue({
-      formulaPaths: [],
+      formulaPaths: [emptyDir, populatedDir],
       projectRoot: tempDir,
       bdBinary: "bd",
       gtBinary: "gt",
@@ -397,25 +401,25 @@ describe("GET /api/tree", () => {
     const body = (await res.json()) as TreeResponse;
     expect(body.ok).toBe(true);
     if (body.ok) {
-      const names = body.nodes.map((n) => n.name);
-      expect(names).not.toContain("empty-dir");
-      expect(names).toContain("has-formulas");
+      // Only the populated dir should appear
+      expect(body.nodes).toHaveLength(1);
+      expect(body.nodes[0].children).toHaveLength(1);
     }
   });
 
-  it("skips dotfiles and pruned directories", async () => {
-    mkdirSync(join(tempDir, ".git"));
-    writeFileSync(join(tempDir, ".git", "a.formula.toml"), "");
-    mkdirSync(join(tempDir, "node_modules"));
-    writeFileSync(join(tempDir, "node_modules", "b.formula.toml"), "");
-    mkdirSync(join(tempDir, ".hidden"));
-    writeFileSync(join(tempDir, ".hidden", "c.formula.toml"), "");
-    mkdirSync(join(tempDir, "visible"));
-    writeFileSync(join(tempDir, "visible", "d.formula.toml"), "");
+  it("only shows formula files from configured search paths", async () => {
+    // Create dirs with formulas but only include one in search paths
+    const includedDir = join(tempDir, "included");
+    mkdirSync(includedDir);
+    writeFileSync(join(includedDir, "yes.formula.toml"), "");
+
+    const excludedDir = join(tempDir, "excluded");
+    mkdirSync(excludedDir);
+    writeFileSync(join(excludedDir, "no.formula.toml"), "");
 
     vi.spyOn(config, "getWorkspaceRoot").mockReturnValue(tempDir);
     vi.spyOn(config, "getConfig").mockReturnValue({
-      formulaPaths: [],
+      formulaPaths: [includedDir],
       projectRoot: tempDir,
       bdBinary: "bd",
       gtBinary: "gt",
@@ -426,27 +430,26 @@ describe("GET /api/tree", () => {
     const body = (await res.json()) as TreeResponse;
     expect(body.ok).toBe(true);
     if (body.ok) {
-      const names = body.nodes.map((n) => n.name);
-      expect(names).not.toContain(".git");
-      expect(names).not.toContain("node_modules");
-      expect(names).not.toContain(".hidden");
-      expect(names).toContain("visible");
+      expect(body.totalCount).toBe(2); // 1 dir + 1 formula
+      // Should not contain excluded formula
+      const allNames = body.nodes.flatMap((n) => n.children?.map((c) => c.formulaName) ?? []);
+      expect(allNames).toContain("yes");
+      expect(allNames).not.toContain("no");
     }
   });
 
-  it("truncates at node limit", async () => {
-    // Create 510 formula files across directories to exceed the 500 limit
-    for (let i = 0; i < 51; i++) {
-      const dir = join(tempDir, `dir-${String(i).padStart(3, "0")}`);
-      mkdirSync(dir);
-      for (let j = 0; j < 10; j++) {
-        writeFileSync(join(dir, `f${j}.formula.toml`), "");
-      }
-    }
+  it("shows formulas from multiple search paths as separate directories", async () => {
+    const dir1 = join(tempDir, "formulas");
+    mkdirSync(dir1);
+    writeFileSync(join(dir1, "local.formula.toml"), "");
+
+    const dir2 = mkdtempSync(join(tmpdir(), "ext-formulas-"));
+    writeFileSync(join(dir2, "remote.formula.toml"), "");
+    writeFileSync(join(dir2, "shared.formula.toml"), "");
 
     vi.spyOn(config, "getWorkspaceRoot").mockReturnValue(tempDir);
     vi.spyOn(config, "getConfig").mockReturnValue({
-      formulaPaths: [],
+      formulaPaths: [dir1, dir2],
       projectRoot: tempDir,
       bdBinary: "bd",
       gtBinary: "gt",
@@ -457,70 +460,28 @@ describe("GET /api/tree", () => {
     const body = (await res.json()) as TreeResponse;
     expect(body.ok).toBe(true);
     if (body.ok) {
-      expect(body.truncated).toBe(true);
-      // Counter may slightly exceed NODE_LIMIT (500) because a directory node
-      // is counted after its children fill the limit during recursion
-      expect(body.totalCount).toBeGreaterThanOrEqual(500);
-      expect(body.totalCount).toBeLessThanOrEqual(510);
-    }
-  });
-
-  it("merges formulas from external search paths", async () => {
-    // Create workspace with one local formula
-    const localFormulas = join(tempDir, "formulas");
-    mkdirSync(localFormulas);
-    writeFileSync(join(localFormulas, "local.formula.toml"), "");
-
-    // Create an external search path outside workspace root
-    const externalDir = mkdtempSync(join(tmpdir(), "ext-formulas-"));
-    writeFileSync(join(externalDir, "remote.formula.toml"), "");
-    writeFileSync(join(externalDir, "shared.formula.toml"), "");
-
-    vi.spyOn(config, "getWorkspaceRoot").mockReturnValue(tempDir);
-    vi.spyOn(config, "getConfig").mockReturnValue({
-      formulaPaths: [localFormulas, externalDir],
-      projectRoot: tempDir,
-      bdBinary: "bd",
-      gtBinary: "gt",
-      bvBinary: "bv",
-    });
-
-    const res = await app.request("/api/tree");
-    const body = (await res.json()) as TreeResponse;
-    expect(body.ok).toBe(true);
-    if (body.ok) {
-      // Local: 1 dir + 1 formula = 2, External: 1 dir + 2 formulas = 3
+      // dir1: 1 dir + 1 formula = 2, dir2: 1 dir + 2 formulas = 3
       expect(body.totalCount).toBe(5);
-
-      // Local formulas present under workspace tree
-      const localNode = body.nodes.find((n) => n.name === "formulas");
-      expect(localNode).toBeDefined();
-      expect(localNode?.children).toHaveLength(1);
-
-      // External formulas present as a labeled directory
-      const externalNode = body.nodes.find((n) => n.path === externalDir);
-      expect(externalNode).toBeDefined();
-      expect(externalNode?.type).toBe("directory");
-      expect(externalNode?.children).toHaveLength(2);
+      expect(body.nodes).toHaveLength(2);
+      expect(body.nodes[0].children).toHaveLength(1);
+      expect(body.nodes[1].children).toHaveLength(2);
     }
 
-    rmSync(externalDir, { recursive: true, force: true });
+    rmSync(dir2, { recursive: true, force: true });
   });
 
   it("deduplicates formulas by name across search paths", async () => {
-    // Create workspace with a formula
-    const localFormulas = join(tempDir, "formulas");
-    mkdirSync(localFormulas);
-    writeFileSync(join(localFormulas, "deploy.formula.toml"), "");
+    const dir1 = join(tempDir, "formulas");
+    mkdirSync(dir1);
+    writeFileSync(join(dir1, "deploy.formula.toml"), "");
 
-    // External path has same formula name
-    const externalDir = mkdtempSync(join(tmpdir(), "ext-dup-"));
-    writeFileSync(join(externalDir, "deploy.formula.toml"), "");
-    writeFileSync(join(externalDir, "unique.formula.toml"), "");
+    const dir2 = mkdtempSync(join(tmpdir(), "ext-dup-"));
+    writeFileSync(join(dir2, "deploy.formula.toml"), ""); // duplicate
+    writeFileSync(join(dir2, "unique.formula.toml"), "");
 
     vi.spyOn(config, "getWorkspaceRoot").mockReturnValue(tempDir);
     vi.spyOn(config, "getConfig").mockReturnValue({
-      formulaPaths: [localFormulas, externalDir],
+      formulaPaths: [dir1, dir2],
       projectRoot: tempDir,
       bdBinary: "bd",
       gtBinary: "gt",
@@ -531,12 +492,11 @@ describe("GET /api/tree", () => {
     const body = (await res.json()) as TreeResponse;
     expect(body.ok).toBe(true);
     if (body.ok) {
-      // Local: 1 dir + 1 formula = 2, External: 1 dir + 1 unique formula = 2
-      // (deploy is deduplicated)
+      // dir1: 1 dir + 1 formula = 2, dir2: 1 dir + 1 unique = 2 (deploy deduplicated)
       expect(body.totalCount).toBe(4);
     }
 
-    rmSync(externalDir, { recursive: true, force: true });
+    rmSync(dir2, { recursive: true, force: true });
   });
 
   it("returns 404 when workspace root does not exist", async () => {
@@ -552,15 +512,16 @@ describe("GET /api/tree", () => {
     }
   });
 
-  it("handles nested directory structures", async () => {
-    const a = join(tempDir, "a");
-    const ab = join(a, "b");
-    mkdirSync(ab, { recursive: true });
-    writeFileSync(join(ab, "deep.formula.toml"), "");
+  it("handles search path with many formulas", async () => {
+    const formulasDir = join(tempDir, "formulas");
+    mkdirSync(formulasDir);
+    writeFileSync(join(formulasDir, "a.formula.toml"), "");
+    writeFileSync(join(formulasDir, "b.formula.toml"), "");
+    writeFileSync(join(formulasDir, "c.formula.json"), "");
 
     vi.spyOn(config, "getWorkspaceRoot").mockReturnValue(tempDir);
     vi.spyOn(config, "getConfig").mockReturnValue({
-      formulaPaths: [],
+      formulaPaths: [formulasDir],
       projectRoot: tempDir,
       bdBinary: "bd",
       gtBinary: "gt",
@@ -571,30 +532,27 @@ describe("GET /api/tree", () => {
     const body = (await res.json()) as TreeResponse;
     expect(body.ok).toBe(true);
     if (body.ok) {
-      expect(body.totalCount).toBe(3); // dir a + dir b + formula file
-      const aNode = body.nodes.find((n) => n.name === "a");
-      expect(aNode?.type).toBe("directory");
-      const bNode = aNode?.children?.find((n) => n.name === "b");
-      expect(bNode?.type).toBe("directory");
-      const formulaNode = bNode?.children?.find((n) => n.name === "deep.formula.toml");
-      expect(formulaNode?.type).toBe("formula");
-      expect(formulaNode?.formulaName).toBe("deep");
+      expect(body.totalCount).toBe(4); // 1 dir + 3 formulas
+      const dirNode = body.nodes[0];
+      expect(dirNode.children).toHaveLength(3);
+      const names = dirNode.children!.map((c) => c.formulaName);
+      expect(names).toContain("a");
+      expect(names).toContain("b");
+      expect(names).toContain("c");
     }
   });
 
   it("responds within 500ms for 200-file fixture", async () => {
-    // Create 200 formula files across 20 directories
-    for (let i = 0; i < 20; i++) {
-      const dir = join(tempDir, `perf-${String(i).padStart(2, "0")}`);
-      mkdirSync(dir);
-      for (let j = 0; j < 10; j++) {
-        writeFileSync(join(dir, `formula-${j}.formula.toml`), "");
-      }
+    // Create a single search path with 200 formula files
+    const formulasDir = join(tempDir, "formulas");
+    mkdirSync(formulasDir);
+    for (let j = 0; j < 200; j++) {
+      writeFileSync(join(formulasDir, `formula-${j}.formula.toml`), "");
     }
 
     vi.spyOn(config, "getWorkspaceRoot").mockReturnValue(tempDir);
     vi.spyOn(config, "getConfig").mockReturnValue({
-      formulaPaths: [],
+      formulaPaths: [formulasDir],
       projectRoot: tempDir,
       bdBinary: "bd",
       gtBinary: "gt",
@@ -609,8 +567,8 @@ describe("GET /api/tree", () => {
     const body = (await res.json()) as TreeResponse;
     expect(body.ok).toBe(true);
     if (body.ok) {
-      // 20 dirs + 200 files = 220 nodes
-      expect(body.totalCount).toBe(220);
+      // 1 dir + 200 files = 201 nodes
+      expect(body.totalCount).toBe(201);
     }
     expect(elapsed).toBeLessThan(500);
   });

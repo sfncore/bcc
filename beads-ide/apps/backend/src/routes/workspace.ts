@@ -395,31 +395,18 @@ priority = 1
     }
 
     try {
-      const counter = { count: 0 }
-      const nodes = await scanTree(root, counter)
-
-      // Merge formulas from search paths outside the workspace root
       const config = getConfig()
-      const resolvedRoot = resolve(root)
+      const nodes: TreeNode[] = []
+      const counter = { count: 0 }
       const seenFormulas = new Set<string>()
 
-      // Collect formula names already in the tree
-      function collectFormulaNames(treeNodes: TreeNode[]) {
-        for (const n of treeNodes) {
-          if (n.type === 'formula' && n.formulaName) seenFormulas.add(n.formulaName)
-          if (n.children) collectFormulaNames(n.children)
-        }
-      }
-      collectFormulaNames(nodes)
-
-      // Add external search path formulas as labeled top-level directories
+      // Build tree from formula search paths only (not recursive workspace scan).
+      // This avoids scanning the entire town root and picking up test fixtures,
+      // worktree copies, and other noise.
       for (const searchPath of config.formulaPaths) {
         const resolvedPath = resolve(searchPath)
-        // Skip paths already under workspace root (already scanned)
-        if (resolvedPath.startsWith(resolvedRoot + '/') || resolvedPath === resolvedRoot) continue
-
         const formulas = scanFormulasFlat(resolvedPath)
-        // Filter out formulas already present (by name) to avoid duplicates
+        // Deduplicate by formula name (first search path wins)
         const newFormulas = formulas.filter((f) => !seenFormulas.has(f.formulaName!))
         if (newFormulas.length === 0) continue
 
