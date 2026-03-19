@@ -1072,29 +1072,19 @@ export function GraphView({
     }
   }, [simplifiedNodes, simplifiedEdges, simplificationState.layout])
 
+  // Stable key to force clean remount when data structurally changes
+  const graphKey = useMemo(
+    () => `${rawNodes.length}-${rawEdges.length}-${simplificationState.layout}-${simplificationState.epicClustering}`,
+    [rawNodes.length, rawEdges.length, simplificationState.layout, simplificationState.epicClustering]
+  )
+
   const [nodes, setNodes, onNodesChange] = useNodesState(layoutNodes as Node[])
-  const [edges, setEdges, onEdgesChange] = useEdgesState(simplifiedEdges)
+  const [edges, , onEdgesChange] = useEdgesState(simplifiedEdges)
 
-  // Update nodes when layout or simplification changes
-  useMemo(() => {
-    setNodes(layoutNodes as Node[])
-    setEdges(simplifiedEdges)
-  }, [layoutNodes, simplifiedEdges, setNodes, setEdges])
-
-  // Apply fisheye distortion when enabled and mouse is moving
+  // Sync nodes when layout changes — useEffect (not useMemo) to avoid render-loop
   useEffect(() => {
-    if (simplificationState.fisheyeMode && mousePosition) {
-      const distortedNodes = applyFisheyeDistortion(
-        layoutNodes as Node<NodeData>[],
-        mousePosition.x,
-        mousePosition.y
-      )
-      setNodes(distortedNodes as Node[])
-    } else if (!simplificationState.fisheyeMode) {
-      // Reset to layout positions when fisheye disabled
-      setNodes(layoutNodes as Node[])
-    }
-  }, [simplificationState.fisheyeMode, mousePosition, layoutNodes, setNodes])
+    setNodes(layoutNodes as Node[])
+  }, [layoutNodes, setNodes])
 
   // Save manual positions when nodes are dragged (only in manual mode)
   const handleNodesChange: typeof onNodesChange = useCallback(
@@ -1328,6 +1318,7 @@ export function GraphView({
         />
       ) : (
         <ReactFlow
+          key={graphKey}
           nodes={nodes}
           edges={edges}
           onNodesChange={handleNodesChange}
