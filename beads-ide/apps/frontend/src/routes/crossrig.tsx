@@ -218,6 +218,7 @@ function CrossRigPage() {
   const [excludeNoise, setExcludeNoise] = useState(true);
   const [selectedConvoyId, setSelectedConvoyId] = useState<string | null>(null);
   const [selectedEpicId, setSelectedEpicId] = useState<string | null>(null);
+  const [drillRender, setDrillRender] = useState<"graph" | "svg">("graph");
 
   const { beads, count, rigStats, isLoading, error, refresh } = useCrossRigBeads({
     exclude_noise: excludeNoise,
@@ -359,6 +360,7 @@ function CrossRigPage() {
                       {convoyGraph.nodeCount} beads &middot; {convoyGraph.waves.length} waves &middot; {Object.keys(convoyGraph.rigs).length} rigs
                     </span>
                     <CopyMermaidBtn nodes={convoyGraph.nodes} edges={convoyGraph.edges} groupByRig />
+                    <DrillRenderToggle value={drillRender} onChange={setDrillRender} />
                   </>
                 )}
               </>
@@ -374,6 +376,7 @@ function CrossRigPage() {
                       {epicGraph.nodeCount - 1} tasks &middot; {epicGraph.waves.length} waves &middot; {epicGraph.edgeCount} deps
                     </span>
                     <CopyMermaidBtn nodes={epicGraph.nodes} edges={epicGraph.edges} />
+                    <DrillRenderToggle value={drillRender} onChange={setDrillRender} />
                   </>
                 )}
               </>
@@ -636,13 +639,19 @@ function CrossRigPage() {
           )}
           {convoyGraph && !convoyLoading && (
             <>
-              <GraphView
-                nodes={convoyGraph.nodes}
-                edges={convoyGraph.edges}
-                density={convoyGraph.density}
-                onBeadClick={(id) => selectBead(id)}
-              />
-              <RigLegend rigs={convoyGraph.rigs} />
+              {drillRender === "svg" ? (
+                <MermaidView
+                  mermaid={toMermaid(convoyGraph.nodes, convoyGraph.edges, { groupByRig: true, direction: 'TD' })}
+                />
+              ) : (
+                <>
+                  <GraphView
+                    nodes={convoyGraph.nodes}
+                    edges={convoyGraph.edges}
+                    density={convoyGraph.density}
+                    onBeadClick={(id) => selectBead(id)}
+                  />
+                  <RigLegend rigs={convoyGraph.rigs} />
               {/* Wave progress overlay */}
               <div style={waveLegendStyle}>
                 <span style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px" }}>
@@ -671,6 +680,8 @@ function CrossRigPage() {
                   );
                 })}
               </div>
+                </>
+              )}
             </>
           )}
         </div>
@@ -686,41 +697,49 @@ function CrossRigPage() {
           )}
           {epicGraph && !epicLoading && (
             <>
-              <GraphView
-                nodes={epicGraph.nodes}
-                edges={epicGraph.edges}
-                density={epicGraph.density}
-                onBeadClick={(id) => selectBead(id)}
-              />
-              <RigLegend rigs={epicGraph.rigs} />
-              {/* Wave progress overlay */}
-              <div style={waveLegendStyle}>
-                <span style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                  Waves:
-                </span>
-                {epicGraph.waves.map((wave, i) => {
-                  const waveNodes = epicGraph.nodes.filter((n) => n.wave === i + 1);
-                  const done = waveNodes.filter((n) => n.status === "closed").length;
-                  const total = waveNodes.length;
-                  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-                  return (
-                    <span
-                      key={i}
-                      style={{ fontSize: "11px", display: "flex", alignItems: "center", gap: "4px" }}
-                    >
-                      <span style={{
-                        width: "18px", height: "18px", borderRadius: "50%",
-                        backgroundColor: pct === 100 ? "#22c55e" : pct > 0 ? "#f59e0b" : "#555",
-                        color: "#fff", fontSize: "9px", fontWeight: 700,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>
-                        {i + 1}
-                      </span>
-                      <span style={{ color: "#ccc" }}>{done}/{total}</span>
+              {drillRender === "svg" ? (
+                <MermaidView
+                  mermaid={toMermaid(epicGraph.nodes, epicGraph.edges, { direction: 'TD' })}
+                />
+              ) : (
+                <>
+                  <GraphView
+                    nodes={epicGraph.nodes}
+                    edges={epicGraph.edges}
+                    density={epicGraph.density}
+                    onBeadClick={(id) => selectBead(id)}
+                  />
+                  <RigLegend rigs={epicGraph.rigs} />
+                  {/* Wave progress overlay */}
+                  <div style={waveLegendStyle}>
+                    <span style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                      Waves:
                     </span>
-                  );
-                })}
-              </div>
+                    {epicGraph.waves.map((wave, i) => {
+                      const waveNodes = epicGraph.nodes.filter((n) => n.wave === i + 1);
+                      const done = waveNodes.filter((n) => n.status === "closed").length;
+                      const total = waveNodes.length;
+                      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                      return (
+                        <span
+                          key={i}
+                          style={{ fontSize: "11px", display: "flex", alignItems: "center", gap: "4px" }}
+                        >
+                          <span style={{
+                            width: "18px", height: "18px", borderRadius: "50%",
+                            backgroundColor: pct === 100 ? "#22c55e" : pct > 0 ? "#f59e0b" : "#555",
+                            color: "#fff", fontSize: "9px", fontWeight: 700,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                          }}>
+                            {i + 1}
+                          </span>
+                          <span style={{ color: "#ccc" }}>{done}/{total}</span>
+                        </span>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
@@ -748,6 +767,20 @@ function CopyMermaidBtn({ nodes, edges, groupByRig }: { nodes: any[]; edges: any
     >
       {copied ? "Copied!" : "Copy Mermaid"}
     </button>
+  );
+}
+
+/** Graph/SVG render toggle for drill-down views */
+function DrillRenderToggle({ value, onChange }: { value: "graph" | "svg"; onChange: (v: "graph" | "svg") => void }) {
+  return (
+    <div style={{ display: "flex", gap: "2px" }}>
+      <button type="button" style={viewToggleBtnStyle(value === "graph")} onClick={() => onChange("graph")}>
+        Graph
+      </button>
+      <button type="button" style={viewToggleBtnStyle(value === "svg")} onClick={() => onChange("svg")}>
+        SVG
+      </button>
+    </div>
   );
 }
 
