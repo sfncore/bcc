@@ -52,10 +52,8 @@ body {
   }
 }
 
-/* Make FrankenMermaid SVG diagrams fill available space */
+/* Mermaid SVG diagrams - let them size naturally */
 .mermaid-svg-wrapper svg {
-  width: 100%;
-  height: 100%;
-  max-width: none;
-  max-height: none;
+  max-width: 100%;
+  height: auto;
 }

@@ -1,6 +1,6 @@
 /**
- * Mermaid diagram renderer using FrankenMermaid WASM.
- * Renders Mermaid syntax as SVG or interactive Canvas2D.
+ * Mermaid diagram renderer using the official mermaid.js library.
+ * Renders Mermaid syntax as SVG with full dagre/elk layout support.
  */
 import { type CSSProperties, useCallback, useEffect, useRef, useState } from 'react'
 
@@ -20,6 +20,7 @@ const toolbarStyle: CSSProperties = {
   backgroundColor: '#252526',
   borderBottom: '1px solid #3c3c3c',
   alignItems: 'center',
+  flexShrink: 0,
 }
 
 const btnStyle: CSSProperties = {
@@ -34,9 +35,6 @@ const btnStyle: CSSProperties = {
 
 const svgContainerStyle: CSSProperties = {
   flex: 1,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
   padding: '16px',
   overflow: 'auto',
   minHeight: 0,
@@ -46,17 +44,19 @@ interface MermaidViewProps {
   /** Mermaid syntax string */
   mermaid: string
   /** Theme: dark or default */
-  theme?: 'dark' | 'default' | 'corporate'
+  theme?: 'dark' | 'default'
 }
 
-export function MermaidView({ mermaid, theme = 'dark' }: MermaidViewProps) {
+let mermaidInitialized = false
+let renderCounter = 0
+
+export function MermaidView({ mermaid: mermaidSyntax, theme = 'dark' }: MermaidViewProps) {
   const [svg, setSvg] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [copied, setCopied] = useState(false)
-  const fmRef = useRef<any>(null)
+  const [copied, setCopied] = useState<string | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
-  // Load FrankenMermaid WASM and render
   useEffect(() => {
     let cancelled = false
 
@@ -65,17 +65,27 @@ export function MermaidView({ mermaid, theme = 'dark' }: MermaidViewProps) {
       setError(null)
 
       try {
-        if (!fmRef.current) {
-          const fm = await import('@beads-ide/frankenmermaid')
-          // Load WASM from public directory
-          await fm.default('/frankenmermaid_bg.wasm')
-          fm.init({ theme })
-          fmRef.current = fm
+        const mermaid = (await import('mermaid')).default
+
+        if (!mermaidInitialized) {
+          mermaid.initialize({
+            startOnLoad: false,
+            theme: theme === 'dark' ? 'dark' : 'default',
+            securityLevel: 'loose',
+            flowchart: {
+              useMaxWidth: true,
+              htmlLabels: true,
+              curve: 'basis',
+            },
+          })
+          mermaidInitialized = true
         }
 
-        const result = fmRef.current.renderSvg(mermaid, { theme })
+        const id = `mermaid-diagram-${++renderCounter}`
+        const { svg: renderedSvg } = await mermaid.render(id, mermaidSyntax)
+
         if (!cancelled) {
-          setSvg(result)
+          setSvg(renderedSvg)
         }
       } catch (err) {
         if (!cancelled) {
@@ -90,23 +100,14 @@ export function MermaidView({ mermaid, theme = 'dark' }: MermaidViewProps) {
 
     render()
     return () => { cancelled = true }
-  }, [mermaid, theme])
+  }, [mermaidSyntax, theme])
 
-  const copyMermaid = useCallback(() => {
-    navigator.clipboard.writeText(mermaid).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+  const copyToClipboard = useCallback((text: string, label: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(label)
+      setTimeout(() => setCopied(null), 2000)
     })
-  }, [mermaid])
-
-  const copySvg = useCallback(() => {
-    if (svg) {
-      navigator.clipboard.writeText(svg).then(() => {
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-      })
-    }
-  }, [svg])
+  }, [])
 
   const downloadSvg = useCallback(() => {
     if (!svg) return
@@ -122,28 +123,30 @@ export function MermaidView({ mermaid, theme = 'dark' }: MermaidViewProps) {
   return (
     <div style={containerStyle}>
       <div style={toolbarStyle}>
-        <span style={{ fontSize: '11px', color: '#888' }}>FrankenMermaid WASM</span>
-        <button type="button" style={btnStyle} onClick={copyMermaid}>
-          {copied ? 'Copied!' : 'Copy Mermaid'}
+        <span style={{ fontSize: '11px', color: '#888' }}>Mermaid</span>
+        <button type="button" style={btnStyle} onClick={() => copyToClipboard(mermaidSyntax, 'Mermaid')}>
+          {copied === 'Mermaid' ? 'Copied!' : 'Copy Mermaid'}
         </button>
         {svg && (
           <>
-            <button type="button" style={btnStyle} onClick={copySvg}>Copy SVG</button>
+            <button type="button" style={btnStyle} onClick={() => copyToClipboard(svg, 'SVG')}>
+              {copied === 'SVG' ? 'Copied!' : 'Copy SVG'}
+            </button>
             <button type="button" style={btnStyle} onClick={downloadSvg}>Download SVG</button>
           </>
         )}
       </div>
 
-      <div style={svgContainerStyle}>
-        {loading && <span style={{ color: '#888' }}>Loading WASM...</span>}
+      <div ref={containerRef} style={svgContainerStyle}>
+        {loading && <span style={{ color: '#888' }}>Rendering diagram...</span>}
         {error && (
           <div style={{ color: '#f14c4c', padding: '16px' }}>
-            <div>FrankenMermaid render error:</div>
+            <div>Mermaid render error:</div>
             <pre style={{ fontSize: '11px', marginTop: '8px', whiteSpace: 'pre-wrap' }}>{error}</pre>
             <div style={{ marginTop: '12px', color: '#888', fontSize: '11px' }}>
               Mermaid source:
               <pre style={{ marginTop: '4px', padding: '8px', backgroundColor: '#2d2d2d', borderRadius: '4px' }}>
-                {mermaid}
+                {mermaidSyntax}
               </pre>
             </div>
           </div>
@@ -152,7 +155,6 @@ export function MermaidView({ mermaid, theme = 'dark' }: MermaidViewProps) {
           <div
             dangerouslySetInnerHTML={{ __html: svg }}
             className="mermaid-svg-wrapper"
-            style={{ width: '100%', height: '100%' }}
           />
         )}
       </div>
