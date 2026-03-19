@@ -405,40 +405,68 @@ const crossrig = new Hono()
         })
       }
 
-      // 2. Determine which rig database each bead lives in by prefix
-      const routes = loadRoutes()
+      // 2. Determine which rig database each bead lives in
+      // Two ID formats:
+      //   - Simple: "lf-q5btn.1" → prefix "lf" → db "lf"
+      //   - External: "external:lora_forge:lf-15rx" → rig "lora_forge", bead "lf-15rx"
       const allDatabases = await getRigDatabases()
-      // Build prefix→db map from routes (prefix is like "op-" → db is "beads_op")
-      // Also try matching by raw prefix against bead IDs
+      const dbSet = new Set(allDatabases)
       const beadIdsByDb = new Map<string, string[]>()
+      // Map from original tracked ID to resolved bead ID (for external: format)
+      const resolvedIds = new Map<string, string>()
 
-      for (const beadId of trackedIds) {
-        let matched = false
-        // Try each database name as a prefix
-        for (const db of allDatabases) {
-          // Check if bead ID starts with a known prefix
-          // Routes map has db name (without beads_ prefix) → path
-          // Bead IDs use the prefix from routes.jsonl (e.g., "op-" for beads_op)
-          const shortName = db.replace(/^beads_/, '')
-          if (beadId.startsWith(`${shortName}-`)) {
-            if (!beadIdsByDb.has(db)) beadIdsByDb.set(db, [])
-            beadIdsByDb.get(db)!.push(beadId)
-            matched = true
-            break
+      for (const rawId of trackedIds) {
+        let db: string | null = null
+        let beadId = rawId
+
+        // Handle external:rig_name:bead_id format
+        if (rawId.startsWith('external:')) {
+          const parts = rawId.split(':')
+          if (parts.length >= 3) {
+            const rigName = parts[1]
+            beadId = parts.slice(2).join(':')
+            // Try rig name directly as db, or find db by bead prefix
+            if (dbSet.has(rigName)) {
+              db = rigName
+            } else {
+              // Rig name might differ from db name — match bead prefix
+              for (const candidate of allDatabases) {
+                const shortName = candidate.replace(/^beads_/, '')
+                if (beadId.startsWith(`${shortName}-`)) {
+                  db = candidate
+                  break
+                }
+              }
+            }
           }
         }
-        // Fallback: try HQ
-        if (!matched) {
-          if (!beadIdsByDb.has('hq')) beadIdsByDb.set('hq', [])
-          beadIdsByDb.get('hq')!.push(beadId)
+
+        // Simple prefix matching for non-external IDs
+        if (!db) {
+          for (const candidate of allDatabases) {
+            const shortName = candidate.replace(/^beads_/, '')
+            if (beadId.startsWith(`${shortName}-`)) {
+              db = candidate
+              break
+            }
+          }
         }
+
+        // Fallback to HQ
+        if (!db) db = 'hq'
+
+        resolvedIds.set(rawId, beadId)
+        if (!beadIdsByDb.has(db)) beadIdsByDb.set(db, [])
+        beadIdsByDb.get(db)!.push(beadId)
       }
+
+      // Build resolved ID set for edge filtering
+      const resolvedIdSet = new Set(resolvedIds.values())
 
       // 3. Fetch full bead data and dependencies from each rig
       const nodes: any[] = []
       const edges: any[] = []
       const rigStats: Record<string, number> = {}
-      const beadIdSet = new Set(trackedIds)
 
       for (const [db, ids] of beadIdsByDb) {
         let conn: mysql.Connection | null = null
@@ -488,7 +516,7 @@ const crossrig = new Hono()
             )
             for (const dep of depRows as any[]) {
               // Only include edges where both ends are in the convoy
-              if (beadIdSet.has(dep.depends_on_id)) {
+              if (resolvedIdSet.has(dep.depends_on_id)) {
                 edges.push({
                   from: dep.depends_on_id,
                   to: dep.issue_id,
