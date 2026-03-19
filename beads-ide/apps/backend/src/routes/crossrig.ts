@@ -392,7 +392,9 @@ const crossrig = new Hono()
       )
       await hqConn.end()
 
-      const trackedIds = (depRows as any[]).map((d: any) => d.depends_on_id)
+      const trackedIds = (depRows as any[])
+        .map((d: any) => d.depends_on_id)
+        .filter((id: string) => !id.endsWith('-sentinel')) // Filter convoy sentinels
       if (trackedIds.length === 0) {
         return c.json({
           convoy: { id: convoy.id, title: convoy.title, status: convoy.status },
