@@ -9,11 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as CrossrigRouteImport } from './routes/crossrig'
 import { Route as BeadsRouteImport } from './routes/beads'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ResultsIdRouteImport } from './routes/results.$id'
 import { Route as FormulaNameRouteImport } from './routes/formula.$name'
 
+const CrossrigRoute = CrossrigRouteImport.update({
+  id: '/crossrig',
+  path: '/crossrig',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BeadsRoute = BeadsRouteImport.update({
   id: '/beads',
   path: '/beads',
@@ -38,12 +44,14 @@ const FormulaNameRoute = FormulaNameRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/beads': typeof BeadsRoute
+  '/crossrig': typeof CrossrigRoute
   '/formula/$name': typeof FormulaNameRoute
   '/results/$id': typeof ResultsIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/beads': typeof BeadsRoute
+  '/crossrig': typeof CrossrigRoute
   '/formula/$name': typeof FormulaNameRoute
   '/results/$id': typeof ResultsIdRoute
 }
@@ -51,26 +59,41 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/beads': typeof BeadsRoute
+  '/crossrig': typeof CrossrigRoute
   '/formula/$name': typeof FormulaNameRoute
   '/results/$id': typeof ResultsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/beads' | '/formula/$name' | '/results/$id'
+  fullPaths: '/' | '/beads' | '/crossrig' | '/formula/$name' | '/results/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/beads' | '/formula/$name' | '/results/$id'
-  id: '__root__' | '/' | '/beads' | '/formula/$name' | '/results/$id'
+  to: '/' | '/beads' | '/crossrig' | '/formula/$name' | '/results/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/beads'
+    | '/crossrig'
+    | '/formula/$name'
+    | '/results/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BeadsRoute: typeof BeadsRoute
+  CrossrigRoute: typeof CrossrigRoute
   FormulaNameRoute: typeof FormulaNameRoute
   ResultsIdRoute: typeof ResultsIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/crossrig': {
+      id: '/crossrig'
+      path: '/crossrig'
+      fullPath: '/crossrig'
+      preLoaderRoute: typeof CrossrigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/beads': {
       id: '/beads'
       path: '/beads'
@@ -105,6 +128,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BeadsRoute: BeadsRoute,
+  CrossrigRoute: CrossrigRoute,
   FormulaNameRoute: FormulaNameRoute,
   ResultsIdRoute: ResultsIdRoute,
 }

@@ -1,4 +1,4 @@
-import { Outlet, createRootRoute } from '@tanstack/react-router'
+import { Link, Outlet, createRootRoute, useMatchRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/router-devtools'
 import { Component, type ErrorInfo, type ReactNode, useCallback, useEffect, useState } from 'react'
 import { Toaster } from 'sonner'
@@ -75,6 +75,33 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 export const Route = createRootRoute({
   component: RootLayout,
 })
+
+const navTabStyle = (active: boolean): React.CSSProperties => ({
+  padding: '6px 16px',
+  fontSize: '12px',
+  color: active ? '#e5e5e5' : '#888',
+  borderBottom: active ? '2px solid #007acc' : '2px solid transparent',
+  background: 'none',
+  cursor: 'pointer',
+  textDecoration: 'none',
+  display: 'inline-block',
+})
+
+function NavTabs() {
+  const matchRoute = useMatchRoute()
+  const isBeads = !!matchRoute({ to: '/beads' })
+  const isCrossRig = !!matchRoute({ to: '/crossrig' })
+  const isHome = !!matchRoute({ to: '/' })
+  const isFormula = !isBeads && !isCrossRig && !isHome
+
+  return (
+    <div style={{ padding: '0 16px', borderBottom: '1px solid #333', display: 'flex', gap: '0' }}>
+      <Link to="/" style={navTabStyle(isHome)}>Home</Link>
+      <Link to="/beads" style={navTabStyle(isBeads)}>Beads</Link>
+      <Link to="/crossrig" style={navTabStyle(isCrossRig)}>Cross-Rig</Link>
+    </div>
+  )
+}
 
 /**
  * Inner layout component that uses bead selection context.
@@ -245,16 +272,7 @@ function RootLayoutInner() {
         }
         mainContent={
           <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <div
-              style={{
-                padding: '8px 16px',
-                borderBottom: '1px solid #333',
-                fontSize: '12px',
-                color: '#888',
-              }}
-            >
-              Current view: {viewMode}
-            </div>
+            <NavTabs />
             <div style={{ flex: 1, overflow: 'auto' }}>
               <Outlet />
             </div>

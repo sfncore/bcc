@@ -15,8 +15,6 @@ import type {
 import { Hono } from 'hono'
 import { getConfig, getFormulaSearchPaths, getWorkspaceRoot, setWorkspaceRoot } from '../config.js'
 
-const workspace = new Hono()
-
 const NODE_LIMIT = 500
 
 /**
@@ -108,197 +106,196 @@ async function scanTree(dirPath: string, counter: { count: number }): Promise<Tr
 }
 
 /**
- * GET /api/workspace
- * Returns current workspace state or NO_ROOT error.
+ * Browse entry for directory listing.
  */
-workspace.get('/workspace', (c) => {
-  try {
-    const config = getConfig()
-    const root = getWorkspaceRoot()
+interface BrowseEntry {
+  name: string
+  path: string
+  type: 'directory' | 'file'
+}
 
-    // Check if we have a valid workspace root with .beads/
-    if (!existsSync(resolve(root, '.beads'))) {
-      const response: WorkspaceError = {
-        ok: false,
-        error: 'No workspace root configured',
-        code: 'NO_ROOT',
-      }
-      return c.json(response, 200)
-    }
+const workspace = new Hono()
 
-    const response: WorkspaceStateResponse = {
-      ok: true,
-      root,
-      formulaCount: countFormulas(config.formulaPaths),
-      searchPaths: config.formulaPaths,
-    }
-    return c.json(response)
-  } catch (error) {
-    const response: WorkspaceError = {
-      ok: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      code: 'READ_ERROR',
-    }
-    return c.json(response, 500)
-  }
-})
-
-/**
- * POST /api/workspace/open
- * Validates path, auto-creates .beads/ if missing, sets workspace root.
- */
-workspace.post('/workspace/open', async (c) => {
-  let body: WorkspaceOpenRequest
-  try {
-    body = await c.req.json<WorkspaceOpenRequest>()
-  } catch {
-    const response: WorkspaceError = {
-      ok: false,
-      error: 'Invalid JSON body',
-      code: 'NOT_FOUND',
-    }
-    return c.json(response, 400)
-  }
-
-  if (!body.path || typeof body.path !== 'string') {
-    const response: WorkspaceError = {
-      ok: false,
-      error: 'path is required and must be a string',
-      code: 'NOT_FOUND',
-    }
-    return c.json(response, 400)
-  }
-
-  const resolvedPath = resolve(body.path)
-
-  // Validate path exists and is a directory
-  try {
-    const pathStat = statSync(resolvedPath)
-    if (!pathStat.isDirectory()) {
-      const response: WorkspaceError = {
-        ok: false,
-        error: `Path is not a directory: ${resolvedPath}`,
-        code: 'NOT_DIRECTORY',
-      }
-      return c.json(response, 400)
-    }
-  } catch {
-    const response: WorkspaceError = {
-      ok: false,
-      error: `Path not found: ${resolvedPath}`,
-      code: 'NOT_FOUND',
-    }
-    return c.json(response, 400)
-  }
-
-  // Auto-create .beads/ if missing
-  const beadsDir = resolve(resolvedPath, '.beads')
-  if (!existsSync(beadsDir)) {
+  .get('/workspace', (c) => {
     try {
-      mkdirSync(beadsDir, { recursive: true })
+      const config = getConfig()
+      const root = getWorkspaceRoot()
+
+      // Check if we have a valid workspace root with .beads/
+      if (!existsSync(resolve(root, '.beads'))) {
+        const response: WorkspaceError = {
+          ok: false,
+          error: 'No workspace root configured',
+          code: 'NO_ROOT',
+        }
+        return c.json(response, 200)
+      }
+
+      const response: WorkspaceStateResponse = {
+        ok: true,
+        root,
+        formulaCount: countFormulas(config.formulaPaths),
+        searchPaths: config.formulaPaths,
+      }
+      return c.json(response)
     } catch (error) {
       const response: WorkspaceError = {
         ok: false,
-        error: `Failed to create .beads directory: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        code: 'WRITE_ERROR',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        code: 'READ_ERROR',
       }
       return c.json(response, 500)
     }
-  }
+  })
 
-  // Set workspace root (also clears config cache)
-  setWorkspaceRoot(resolvedPath)
-
-  const searchPaths = getFormulaSearchPaths(resolvedPath)
-  const response: WorkspaceOpenResponse = {
-    ok: true,
-    root: resolvedPath,
-    formulaCount: countFormulas(searchPaths),
-  }
-  return c.json(response)
-})
-
-/**
- * POST /api/workspace/init
- * Scaffolds .beads/ + formulas/ dirs, writes blank template.
- */
-workspace.post('/workspace/init', async (c) => {
-  let body: WorkspaceInitRequest
-  try {
-    body = await c.req.json<WorkspaceInitRequest>()
-  } catch {
-    const response: WorkspaceError = {
-      ok: false,
-      error: 'Invalid JSON body',
-      code: 'NOT_FOUND',
-    }
-    return c.json(response, 400)
-  }
-
-  if (!body.path || typeof body.path !== 'string') {
-    const response: WorkspaceError = {
-      ok: false,
-      error: 'path is required and must be a string',
-      code: 'NOT_FOUND',
-    }
-    return c.json(response, 400)
-  }
-
-  const resolvedPath = resolve(body.path)
-
-  // Validate path exists and is a directory
-  try {
-    const pathStat = statSync(resolvedPath)
-    if (!pathStat.isDirectory()) {
+  .post('/workspace/open', async (c) => {
+    let body: WorkspaceOpenRequest
+    try {
+      body = await c.req.json<WorkspaceOpenRequest>()
+    } catch {
       const response: WorkspaceError = {
         ok: false,
-        error: `Path is not a directory: ${resolvedPath}`,
-        code: 'NOT_DIRECTORY',
+        error: 'Invalid JSON body',
+        code: 'NOT_FOUND',
       }
       return c.json(response, 400)
     }
-  } catch {
-    const response: WorkspaceError = {
-      ok: false,
-      error: `Path not found: ${resolvedPath}`,
-      code: 'NOT_FOUND',
-    }
-    return c.json(response, 400)
-  }
 
-  // Check if already initialized
-  const beadsDir = resolve(resolvedPath, '.beads')
-  if (existsSync(beadsDir)) {
-    const response: WorkspaceError = {
-      ok: false,
-      error: `Workspace already initialized at: ${resolvedPath}`,
-      code: 'ALREADY_INITIALIZED',
-    }
-    return c.json(response, 400)
-  }
-
-  const created: string[] = []
-
-  try {
-    // Create .beads/
-    mkdirSync(beadsDir, { recursive: true })
-    created.push(beadsDir)
-
-    // Create .beads/formulas/
-    const formulasDir = resolve(beadsDir, 'formulas')
-    mkdirSync(formulasDir, { recursive: true })
-    created.push(formulasDir)
-
-    // Create formulas/ at project root
-    const rootFormulasDir = resolve(resolvedPath, 'formulas')
-    if (!existsSync(rootFormulasDir)) {
-      mkdirSync(rootFormulasDir, { recursive: true })
-      created.push(rootFormulasDir)
+    if (!body.path || typeof body.path !== 'string') {
+      const response: WorkspaceError = {
+        ok: false,
+        error: 'path is required and must be a string',
+        code: 'NOT_FOUND',
+      }
+      return c.json(response, 400)
     }
 
-    // Write blank template formula
-    const blankFormulaPath = resolve(formulasDir, 'blank.formula.toml')
-    const blankTemplate = `[formula]
+    const resolvedPath = resolve(body.path)
+
+    // Validate path exists and is a directory
+    try {
+      const pathStat = statSync(resolvedPath)
+      if (!pathStat.isDirectory()) {
+        const response: WorkspaceError = {
+          ok: false,
+          error: `Path is not a directory: ${resolvedPath}`,
+          code: 'NOT_DIRECTORY',
+        }
+        return c.json(response, 400)
+      }
+    } catch {
+      const response: WorkspaceError = {
+        ok: false,
+        error: `Path not found: ${resolvedPath}`,
+        code: 'NOT_FOUND',
+      }
+      return c.json(response, 400)
+    }
+
+    // Auto-create .beads/ if missing
+    const beadsDir = resolve(resolvedPath, '.beads')
+    if (!existsSync(beadsDir)) {
+      try {
+        mkdirSync(beadsDir, { recursive: true })
+      } catch (error) {
+        const response: WorkspaceError = {
+          ok: false,
+          error: `Failed to create .beads directory: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          code: 'WRITE_ERROR',
+        }
+        return c.json(response, 500)
+      }
+    }
+
+    // Set workspace root (also clears config cache)
+    setWorkspaceRoot(resolvedPath)
+
+    const searchPaths = getFormulaSearchPaths(resolvedPath)
+    const response: WorkspaceOpenResponse = {
+      ok: true,
+      root: resolvedPath,
+      formulaCount: countFormulas(searchPaths),
+    }
+    return c.json(response)
+  })
+
+  .post('/workspace/init', async (c) => {
+    let body: WorkspaceInitRequest
+    try {
+      body = await c.req.json<WorkspaceInitRequest>()
+    } catch {
+      const response: WorkspaceError = {
+        ok: false,
+        error: 'Invalid JSON body',
+        code: 'NOT_FOUND',
+      }
+      return c.json(response, 400)
+    }
+
+    if (!body.path || typeof body.path !== 'string') {
+      const response: WorkspaceError = {
+        ok: false,
+        error: 'path is required and must be a string',
+        code: 'NOT_FOUND',
+      }
+      return c.json(response, 400)
+    }
+
+    const resolvedPath = resolve(body.path)
+
+    // Validate path exists and is a directory
+    try {
+      const pathStat = statSync(resolvedPath)
+      if (!pathStat.isDirectory()) {
+        const response: WorkspaceError = {
+          ok: false,
+          error: `Path is not a directory: ${resolvedPath}`,
+          code: 'NOT_DIRECTORY',
+        }
+        return c.json(response, 400)
+      }
+    } catch {
+      const response: WorkspaceError = {
+        ok: false,
+        error: `Path not found: ${resolvedPath}`,
+        code: 'NOT_FOUND',
+      }
+      return c.json(response, 400)
+    }
+
+    // Check if already initialized
+    const beadsDir = resolve(resolvedPath, '.beads')
+    if (existsSync(beadsDir)) {
+      const response: WorkspaceError = {
+        ok: false,
+        error: `Workspace already initialized at: ${resolvedPath}`,
+        code: 'ALREADY_INITIALIZED',
+      }
+      return c.json(response, 400)
+    }
+
+    const created: string[] = []
+
+    try {
+      // Create .beads/
+      mkdirSync(beadsDir, { recursive: true })
+      created.push(beadsDir)
+
+      // Create .beads/formulas/
+      const formulasDir = resolve(beadsDir, 'formulas')
+      mkdirSync(formulasDir, { recursive: true })
+      created.push(formulasDir)
+
+      // Create formulas/ at project root
+      const rootFormulasDir = resolve(resolvedPath, 'formulas')
+      if (!existsSync(rootFormulasDir)) {
+        mkdirSync(rootFormulasDir, { recursive: true })
+        created.push(rootFormulasDir)
+      }
+
+      // Write blank template formula
+      const blankFormulaPath = resolve(formulasDir, 'blank.formula.toml')
+      const blankTemplate = `[formula]
 name = "blank"
 version = 1
 type = "workflow"
@@ -308,137 +305,120 @@ title = "Step 1"
 description = "First step"
 priority = 1
 `
-    writeFileSync(blankFormulaPath, blankTemplate, 'utf-8')
-    created.push(blankFormulaPath)
-  } catch (error) {
-    const response: WorkspaceError = {
-      ok: false,
-      error: `Failed to initialize workspace: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      code: 'WRITE_ERROR',
+      writeFileSync(blankFormulaPath, blankTemplate, 'utf-8')
+      created.push(blankFormulaPath)
+    } catch (error) {
+      const response: WorkspaceError = {
+        ok: false,
+        error: `Failed to initialize workspace: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        code: 'WRITE_ERROR',
+      }
+      return c.json(response, 500)
     }
-    return c.json(response, 500)
-  }
 
-  // Set workspace root
-  setWorkspaceRoot(resolvedPath)
+    // Set workspace root
+    setWorkspaceRoot(resolvedPath)
 
-  const response: WorkspaceInitResponse = {
-    ok: true,
-    root: resolvedPath,
-    created,
-  }
-  return c.json(response)
-})
-
-/**
- * GET /api/tree
- * Recursive async scan of workspace, prunes empty dirs, 500 node limit.
- */
-workspace.get('/tree', async (c) => {
-  const root = getWorkspaceRoot()
-
-  if (!existsSync(root)) {
-    const response: TreeError = {
-      ok: false,
-      error: 'Workspace root not found',
-      code: 'NOT_FOUND',
-    }
-    return c.json(response, 404)
-  }
-
-  try {
-    const counter = { count: 0 }
-    const nodes = await scanTree(root, counter)
-
-    const response: TreeResponse = {
+    const response: WorkspaceInitResponse = {
       ok: true,
-      root,
-      nodes,
-      totalCount: counter.count,
-      truncated: counter.count >= NODE_LIMIT,
+      root: resolvedPath,
+      created,
     }
     return c.json(response)
-  } catch (error) {
-    const response: TreeError = {
-      ok: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      code: 'READ_ERROR',
-    }
-    return c.json(response, 500)
-  }
-})
+  })
 
-/**
- * Browse entry for directory listing.
- */
-interface BrowseEntry {
-  name: string
-  path: string
-  type: 'directory' | 'file'
-}
+  .get('/tree', async (c) => {
+    const root = getWorkspaceRoot()
 
-/**
- * GET /api/browse
- * Directory listing for browser modal. Accepts ?path= query param.
- */
-workspace.get('/browse', (c) => {
-  const queryPath = c.req.query('path')
-  const browsePath = queryPath ? resolve(queryPath) : getWorkspaceRoot()
-
-  if (!existsSync(browsePath)) {
-    return c.json({ ok: false, error: `Path not found: ${browsePath}`, code: 'NOT_FOUND' }, 404)
-  }
-
-  try {
-    const pathStat = statSync(browsePath)
-    if (!pathStat.isDirectory()) {
-      return c.json(
-        { ok: false, error: `Path is not a directory: ${browsePath}`, code: 'NOT_DIRECTORY' },
-        400
-      )
-    }
-
-    const entries = readdirSync(browsePath)
-    entries.sort()
-
-    const items: BrowseEntry[] = []
-    for (const entry of entries) {
-      if (entry.startsWith('.') && entry !== '.beads') continue
-      const fullPath = join(browsePath, entry)
-      try {
-        const entryStat = statSync(fullPath)
-        items.push({
-          name: entry,
-          path: fullPath,
-          type: entryStat.isDirectory() ? 'directory' : 'file',
-        })
-      } catch {
-        // Skip entries we can't stat
+    if (!existsSync(root)) {
+      const response: TreeError = {
+        ok: false,
+        error: 'Workspace root not found',
+        code: 'NOT_FOUND',
       }
+      return c.json(response, 404)
     }
 
-    // Sort directories first, then files
-    items.sort((a, b) => {
-      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
-      return a.name.localeCompare(b.name)
-    })
+    try {
+      const counter = { count: 0 }
+      const nodes = await scanTree(root, counter)
 
-    return c.json({
-      ok: true,
-      path: browsePath,
-      parent: browsePath !== '/' ? resolve(browsePath, '..') : null,
-      entries: items,
-    })
-  } catch (error) {
-    return c.json(
-      {
+      const response: TreeResponse = {
+        ok: true,
+        root,
+        nodes,
+        totalCount: counter.count,
+        truncated: counter.count >= NODE_LIMIT,
+      }
+      return c.json(response)
+    } catch (error) {
+      const response: TreeError = {
         ok: false,
         error: error instanceof Error ? error.message : 'Unknown error',
         code: 'READ_ERROR',
-      },
-      500
-    )
-  }
-})
+      }
+      return c.json(response, 500)
+    }
+  })
+
+  .get('/browse', (c) => {
+    const queryPath = c.req.query('path')
+    const browsePath = queryPath ? resolve(queryPath) : getWorkspaceRoot()
+
+    if (!existsSync(browsePath)) {
+      return c.json({ ok: false, error: `Path not found: ${browsePath}`, code: 'NOT_FOUND' }, 404)
+    }
+
+    try {
+      const pathStat = statSync(browsePath)
+      if (!pathStat.isDirectory()) {
+        return c.json(
+          { ok: false, error: `Path is not a directory: ${browsePath}`, code: 'NOT_DIRECTORY' },
+          400
+        )
+      }
+
+      const entries = readdirSync(browsePath)
+      entries.sort()
+
+      const items: BrowseEntry[] = []
+      for (const entry of entries) {
+        if (entry.startsWith('.') && entry !== '.beads') continue
+        const fullPath = join(browsePath, entry)
+        try {
+          const entryStat = statSync(fullPath)
+          items.push({
+            name: entry,
+            path: fullPath,
+            type: entryStat.isDirectory() ? 'directory' : 'file',
+          })
+        } catch {
+          // Skip entries we can't stat
+        }
+      }
+
+      // Sort directories first, then files
+      items.sort((a, b) => {
+        if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
+        return a.name.localeCompare(b.name)
+      })
+
+      return c.json({
+        ok: true,
+        path: browsePath,
+        parent: browsePath !== '/' ? resolve(browsePath, '..') : null,
+        entries: items,
+      })
+    } catch (error) {
+      return c.json(
+        {
+          ok: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          code: 'READ_ERROR',
+        },
+        500
+      )
+    }
+  })
 
 export { workspace }

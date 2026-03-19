@@ -5,8 +5,6 @@ import { Hono } from "hono";
 import { runCli } from "../cli.js";
 import { getConfig } from "../config.js";
 
-const health = new Hono();
-
 export interface HealthResponse {
   ok: boolean;
   bd_version: string;
@@ -21,63 +19,57 @@ export interface ConfigResponse {
   bv_binary: string;
 }
 
-/**
- * GET /api/health
- * Verifies bd CLI is available and returns version info.
- */
-health.get("/health", async (c) => {
-  try {
-    const result = await runCli("bd", ["--version"]);
+const health = new Hono()
 
-    if (result.exitCode !== 0) {
+  .get("/health", async (c) => {
+    try {
+      const result = await runCli("bd", ["--version"]);
+
+      if (result.exitCode !== 0) {
+        return c.json(
+          {
+            ok: false,
+            bd_version: "",
+            error: "bd CLI returned non-zero exit code",
+          },
+          503,
+        );
+      }
+
+      // Parse version from output (typically "bd version X.Y.Z" or similar)
+      const version = result.stdout.trim() || "unknown";
+
+      const response: HealthResponse = {
+        ok: true,
+        bd_version: version,
+      };
+
+      return c.json(response);
+    } catch (error) {
       return c.json(
         {
           ok: false,
           bd_version: "",
-          error: "bd CLI returned non-zero exit code",
+          error: error instanceof Error ? error.message : "Unknown error checking bd CLI",
         },
         503,
       );
     }
+  })
 
-    // Parse version from output (typically "bd version X.Y.Z" or similar)
-    const version = result.stdout.trim() || "unknown";
+  .get("/config", (c) => {
+    const config = getConfig();
 
-    const response: HealthResponse = {
-      ok: true,
-      bd_version: version,
+    const response: ConfigResponse = {
+      formula_paths: config.formulaPaths,
+      project_root: config.projectRoot,
+      gt_root: process.env.GT_ROOT || "",
+      bd_binary: config.bdBinary,
+      gt_binary: config.gtBinary,
+      bv_binary: config.bvBinary,
     };
 
     return c.json(response);
-  } catch (error) {
-    return c.json(
-      {
-        ok: false,
-        bd_version: "",
-        error: error instanceof Error ? error.message : "Unknown error checking bd CLI",
-      },
-      503,
-    );
-  }
-});
-
-/**
- * GET /api/config
- * Returns current configuration including formula paths and project root.
- */
-health.get("/config", (c) => {
-  const config = getConfig();
-
-  const response: ConfigResponse = {
-    formula_paths: config.formulaPaths,
-    project_root: config.projectRoot,
-    gt_root: process.env.GT_ROOT || "",
-    bd_binary: config.bdBinary,
-    gt_binary: config.gtBinary,
-    bv_binary: config.bvBinary,
-  };
-
-  return c.json(response);
-});
+  });
 
 export { health };

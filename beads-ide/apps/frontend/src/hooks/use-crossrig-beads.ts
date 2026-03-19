@@ -1,59 +1,53 @@
 /**
- * Hook for fetching beads list via Hono RPC client.
+ * Hook for fetching beads across all rig databases via Hono RPC client.
  * Uses type-safe API calls with response types inferred from backend routes.
  */
 import type { BeadFull } from "@beads-ide/shared";
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../lib/rpc";
 
-/** Filter parameters for bead queries */
-export interface BeadFilters {
+export interface CrossRigFilters {
   status?: string;
   type?: string;
   priority?: string;
-  labels?: string[];
   rigs?: string[];
   exclude_noise?: boolean;
+  search?: string;
+  limit?: number;
 }
 
-/** Return value of the useBeads hook */
-export interface UseBeadsReturn {
+export interface UseCrossRigBeadsReturn {
   beads: BeadFull[];
   count: number;
+  rigStats: Record<string, number>;
   isLoading: boolean;
   error: Error | null;
   refresh: () => void;
 }
 
-/**
- * Build query params object from filters.
- */
-function buildQuery(filters: BeadFilters): Record<string, string> {
+function buildQuery(filters: CrossRigFilters): Record<string, string> {
   const query: Record<string, string> = {};
 
   if (filters.status) query.status = filters.status;
   if (filters.type) query.type = filters.type;
   if (filters.priority) query.priority = filters.priority;
-  if (filters.labels?.length) query.labels = filters.labels.join(",");
   if (filters.rigs?.length) query.rigs = filters.rigs.join(",");
   if (filters.exclude_noise) query.exclude_noise = "true";
+  if (filters.search) query.search = filters.search;
+  if (filters.limit) query.limit = String(filters.limit);
 
   return query;
 }
 
-/**
- * Hook for fetching a filtered list of beads.
- * Automatically refetches when filters change.
- */
-const EMPTY_FILTERS: BeadFilters = {};
+const EMPTY_FILTERS: CrossRigFilters = {};
 
-export function useBeads(filters: BeadFilters = EMPTY_FILTERS): UseBeadsReturn {
+export function useCrossRigBeads(filters: CrossRigFilters = EMPTY_FILTERS): UseCrossRigBeadsReturn {
   const [beads, setBeads] = useState<BeadFull[]>([]);
   const [count, setCount] = useState(0);
+  const [rigStats, setRigStats] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  // Stabilize filter values to prevent infinite re-fetch loops
   const filterKey = JSON.stringify(filters);
 
   const doFetch = useCallback(async () => {
@@ -61,7 +55,7 @@ export function useBeads(filters: BeadFilters = EMPTY_FILTERS): UseBeadsReturn {
     setError(null);
 
     try {
-      const res = await api.beads.$get({
+      const res = await api.crossrig.beads.$get({
         query: buildQuery(filters),
       });
 
@@ -73,10 +67,12 @@ export function useBeads(filters: BeadFilters = EMPTY_FILTERS): UseBeadsReturn {
       const data = await res.json();
       setBeads((data as any).beads ?? []);
       setCount((data as any).count ?? 0);
+      setRigStats((data as any).rigs ?? {});
     } catch (err) {
       setError(err instanceof Error ? err : new Error(String(err)));
       setBeads([]);
       setCount(0);
+      setRigStats({});
     } finally {
       setIsLoading(false);
     }
@@ -90,6 +86,7 @@ export function useBeads(filters: BeadFilters = EMPTY_FILTERS): UseBeadsReturn {
   return {
     beads,
     count,
+    rigStats,
     isLoading,
     error,
     refresh: doFetch,

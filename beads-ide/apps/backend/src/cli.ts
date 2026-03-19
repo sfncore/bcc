@@ -6,6 +6,7 @@ import { type ExecFileOptions, execFile } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { promisify } from 'node:util'
+import { getWorkspaceRoot } from './config.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -183,7 +184,7 @@ export async function runCli(
   }
 
   // Resolve working directory
-  const cwd = options.cwd ? resolveProjectRoot(options.cwd) : resolveProjectRoot(process.cwd())
+  const cwd = options.cwd ? resolveProjectRoot(options.cwd) : resolveProjectRoot(getWorkspaceRoot())
 
   // Determine timeout
   const isCookCommand = binary === 'bd' && args.includes('cook')

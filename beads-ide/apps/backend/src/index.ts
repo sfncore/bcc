@@ -2,6 +2,7 @@ import type { Placeholder } from '@beads-ide/shared'
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { beads } from './routes/beads.js'
+import { crossrig } from './routes/crossrig.js'
 import { cook } from './routes/cook.js'
 import { formulas } from './routes/formulas.js'
 import { graph } from './routes/graph.js'
@@ -18,15 +19,20 @@ app.get('/', (c) => {
   return c.json({ message: 'Beads IDE API', id: item.id })
 })
 
-// Register API routes
-app.route('/api', health)
-app.route('/api', beads)
-app.route('/api', graph)
-app.route('/api', cook)
-app.route('/api', formulas)
-app.route('/api', sling)
-app.route('/api', pour)
-app.route('/api', workspace)
+// Register API routes — chained for Hono RPC type inference
+const routes = app
+  .route('/api', health)
+  .route('/api', beads)
+  .route('/api', graph)
+  .route('/api', cook)
+  .route('/api', formulas)
+  .route('/api', sling)
+  .route('/api', pour)
+  .route('/api', workspace)
+  .route('/api', crossrig)
+
+// Export the app type for Hono RPC client (hc)
+export type AppType = typeof routes
 
 // Start server bound to localhost only (security requirement)
 serve({

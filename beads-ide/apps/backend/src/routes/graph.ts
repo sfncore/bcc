@@ -13,8 +13,6 @@ import type {
 import { Hono } from 'hono'
 import { bvGraph, bvInsights, runCli } from '../cli.js'
 
-const graph = new Hono()
-
 /**
  * Check if bv binary is available.
  */
@@ -132,152 +130,144 @@ function parseGraphExport(raw: Record<string, unknown>): GraphExport {
   }
 }
 
-/**
- * GET /api/graph/metrics
- * Returns the 9 graph metrics by invoking bv --robot-insights.
- */
-graph.get('/graph/metrics', async (c) => {
-  // Check if bv is available
-  const bvAvailable = await checkBvAvailable()
-  if (!bvAvailable) {
-    const errorResponse: GraphMetricsResult = {
-      ok: false,
-      error: 'bv binary not found or not executable',
-      code: 'BV_NOT_FOUND',
+const graph = new Hono()
+
+  .get('/graph/metrics', async (c) => {
+    // Check if bv is available
+    const bvAvailable = await checkBvAvailable()
+    if (!bvAvailable) {
+      const errorResponse: GraphMetricsResult = {
+        ok: false,
+        error: 'bv binary not found or not executable',
+        code: 'BV_NOT_FOUND',
+      }
+      return c.json(errorResponse, 503)
     }
-    return c.json(errorResponse, 503)
-  }
 
-  try {
-    const result = await bvInsights()
+    try {
+      const result = await bvInsights()
 
-    if (result.exitCode !== 0) {
-      // Check for common error cases
-      if (result.stderr.includes('no beads') || result.stderr.includes('not initialized')) {
+      if (result.exitCode !== 0) {
+        // Check for common error cases
+        if (result.stderr.includes('no beads') || result.stderr.includes('not initialized')) {
+          const errorResponse: GraphMetricsResult = {
+            ok: false,
+            error: 'No beads database found. Initialize with "bd init".',
+            code: 'NO_BEADS',
+          }
+          return c.json(errorResponse, 404)
+        }
+
         const errorResponse: GraphMetricsResult = {
           ok: false,
-          error: 'No beads database found. Initialize with "bd init".',
-          code: 'NO_BEADS',
+          error: result.stderr || 'bv command failed',
+          code: 'BV_ERROR',
         }
-        return c.json(errorResponse, 404)
+        return c.json(errorResponse, 500)
       }
 
+      // Parse JSON output
+      let rawData: Record<string, unknown>
+      try {
+        rawData = JSON.parse(result.stdout)
+      } catch (parseError) {
+        const errorResponse: GraphMetricsResult = {
+          ok: false,
+          error: `Failed to parse bv output: ${parseError instanceof Error ? parseError.message : 'unknown error'}`,
+          code: 'PARSE_ERROR',
+        }
+        return c.json(errorResponse, 500)
+      }
+
+      const metrics = parseInsightsToMetrics(rawData)
+      const response: GraphMetricsResult = {
+        ok: true,
+        metrics,
+      }
+
+      return c.json(response)
+    } catch (error) {
       const errorResponse: GraphMetricsResult = {
         ok: false,
-        error: result.stderr || 'bv command failed',
+        error: error instanceof Error ? error.message : 'Unknown error',
         code: 'BV_ERROR',
       }
       return c.json(errorResponse, 500)
     }
+  })
 
-    // Parse JSON output
-    let rawData: Record<string, unknown>
-    try {
-      rawData = JSON.parse(result.stdout)
-    } catch (parseError) {
-      const errorResponse: GraphMetricsResult = {
+  .get('/graph/export', async (c) => {
+    // Check if bv is available
+    const bvAvailable = await checkBvAvailable()
+    if (!bvAvailable) {
+      const errorResponse: GraphExportResult = {
         ok: false,
-        error: `Failed to parse bv output: ${parseError instanceof Error ? parseError.message : 'unknown error'}`,
-        code: 'PARSE_ERROR',
+        error: 'bv binary not found or not executable',
+        code: 'BV_NOT_FOUND',
       }
-      return c.json(errorResponse, 500)
+      return c.json(errorResponse, 503)
     }
 
-    const metrics = parseInsightsToMetrics(rawData)
-    const response: GraphMetricsResult = {
-      ok: true,
-      metrics,
+    const format = c.req.query('format') ?? 'json'
+    if (!['json', 'dot', 'mermaid'].includes(format)) {
+      const errorResponse: GraphExportResult = {
+        ok: false,
+        error: `Invalid format: ${format}. Use json, dot, or mermaid.`,
+        code: 'BV_ERROR',
+      }
+      return c.json(errorResponse, 400)
     }
 
-    return c.json(response)
-  } catch (error) {
-    const errorResponse: GraphMetricsResult = {
-      ok: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      code: 'BV_ERROR',
-    }
-    return c.json(errorResponse, 500)
-  }
-})
+    try {
+      const result = await bvGraph(format as 'json' | 'dot' | 'mermaid')
 
-/**
- * GET /api/graph/export
- * Returns graph export data by invoking bv --robot-graph.
- * Query params:
- *   - format: json | dot | mermaid (default: json)
- */
-graph.get('/graph/export', async (c) => {
-  // Check if bv is available
-  const bvAvailable = await checkBvAvailable()
-  if (!bvAvailable) {
-    const errorResponse: GraphExportResult = {
-      ok: false,
-      error: 'bv binary not found or not executable',
-      code: 'BV_NOT_FOUND',
-    }
-    return c.json(errorResponse, 503)
-  }
+      if (result.exitCode !== 0) {
+        // Check for common error cases
+        if (result.stderr.includes('no beads') || result.stderr.includes('not initialized')) {
+          const errorResponse: GraphExportResult = {
+            ok: false,
+            error: 'No beads database found. Initialize with "bd init".',
+            code: 'NO_BEADS',
+          }
+          return c.json(errorResponse, 404)
+        }
 
-  const format = c.req.query('format') ?? 'json'
-  if (!['json', 'dot', 'mermaid'].includes(format)) {
-    const errorResponse: GraphExportResult = {
-      ok: false,
-      error: `Invalid format: ${format}. Use json, dot, or mermaid.`,
-      code: 'BV_ERROR',
-    }
-    return c.json(errorResponse, 400)
-  }
-
-  try {
-    const result = await bvGraph(format as 'json' | 'dot' | 'mermaid')
-
-    if (result.exitCode !== 0) {
-      // Check for common error cases
-      if (result.stderr.includes('no beads') || result.stderr.includes('not initialized')) {
         const errorResponse: GraphExportResult = {
           ok: false,
-          error: 'No beads database found. Initialize with "bd init".',
-          code: 'NO_BEADS',
+          error: result.stderr || 'bv command failed',
+          code: 'BV_ERROR',
         }
-        return c.json(errorResponse, 404)
+        return c.json(errorResponse, 500)
       }
 
+      // Parse JSON output
+      let rawData: Record<string, unknown>
+      try {
+        rawData = JSON.parse(result.stdout)
+      } catch (parseError) {
+        const errorResponse: GraphExportResult = {
+          ok: false,
+          error: `Failed to parse bv output: ${parseError instanceof Error ? parseError.message : 'unknown error'}`,
+          code: 'PARSE_ERROR',
+        }
+        return c.json(errorResponse, 500)
+      }
+
+      const graphExport = parseGraphExport(rawData)
+      const response: GraphExportResult = {
+        ok: true,
+        graph: graphExport,
+      }
+
+      return c.json(response)
+    } catch (error) {
       const errorResponse: GraphExportResult = {
         ok: false,
-        error: result.stderr || 'bv command failed',
+        error: error instanceof Error ? error.message : 'Unknown error',
         code: 'BV_ERROR',
       }
       return c.json(errorResponse, 500)
     }
-
-    // Parse JSON output
-    let rawData: Record<string, unknown>
-    try {
-      rawData = JSON.parse(result.stdout)
-    } catch (parseError) {
-      const errorResponse: GraphExportResult = {
-        ok: false,
-        error: `Failed to parse bv output: ${parseError instanceof Error ? parseError.message : 'unknown error'}`,
-        code: 'PARSE_ERROR',
-      }
-      return c.json(errorResponse, 500)
-    }
-
-    const graphExport = parseGraphExport(rawData)
-    const response: GraphExportResult = {
-      ok: true,
-      graph: graphExport,
-    }
-
-    return c.json(response)
-  } catch (error) {
-    const errorResponse: GraphExportResult = {
-      ok: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      code: 'BV_ERROR',
-    }
-    return c.json(errorResponse, 500)
-  }
-})
+  })
 
 export { graph }

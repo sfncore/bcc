@@ -6,7 +6,8 @@
     "noEmit": true,
     "paths": {
       "@/*": ["./src/*"],
-      "@beads-ide/shared": ["../../packages/shared/src/index.ts"]
+      "@beads-ide/shared": ["../../packages/shared/src/index.ts"],
+      "@beads-ide/backend": ["../../apps/backend/src/index.ts"]
     }
   },
   "include": ["src"]

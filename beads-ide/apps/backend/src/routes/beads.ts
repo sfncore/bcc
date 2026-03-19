@@ -6,8 +6,6 @@ import type { BeadApiError, BeadFull, BeadShowResponse, BeadsListResponse } from
 import { Hono } from 'hono'
 import { runCli, validateBeadId } from '../cli.js'
 
-const beads = new Hono()
-
 /**
  * Parse bd JSON output into BeadFull array.
  * Handles potential parsing errors gracefully.
@@ -96,86 +94,79 @@ function errorResponse(error: string, code: string, details?: string): BeadApiEr
   return { error, code, details }
 }
 
-/**
- * GET /api/beads
- * List all beads with optional filters.
- * Query params: status, type, priority, assignee, owner, labels
- */
-beads.get('/beads', async (c) => {
-  try {
-    const query = c.req.query()
-    const args = buildListArgs(query)
+const beads = new Hono()
 
-    const result = await runCli('bd', args)
+  .get('/beads', async (c) => {
+    try {
+      const query = c.req.query()
+      const args = buildListArgs(query)
 
-    if (result.exitCode !== 0) {
-      const errMessage = result.stderr.trim() || 'bd list command failed'
-      return c.json(errorResponse('Command failed', 'BD_ERROR', errMessage), 500)
+      const result = await runCli('bd', args)
+
+      if (result.exitCode !== 0) {
+        const errMessage = result.stderr.trim() || 'bd list command failed'
+        return c.json(errorResponse('Command failed', 'BD_ERROR', errMessage), 500)
+      }
+
+      const beadsList = parseBeadList(result.stdout)
+
+      const response: BeadsListResponse = {
+        beads: beadsList,
+        count: beadsList.length,
+      }
+
+      return c.json(response)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      return c.json(errorResponse('Internal server error', 'INTERNAL_ERROR', message), 500)
+    }
+  })
+
+  .get('/beads/:id', async (c) => {
+    const id = c.req.param('id')
+
+    try {
+      // Validate bead ID for safety
+      validateBeadId(id)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Invalid bead ID'
+      return c.json(errorResponse('Invalid bead ID', 'INVALID_ID', message), 400)
     }
 
-    const beadsList = parseBeadList(result.stdout)
+    try {
+      const result = await runCli('bd', ['show', id, '--json'])
 
-    const response: BeadsListResponse = {
-      beads: beadsList,
-      count: beadsList.length,
-    }
+      if (result.exitCode !== 0) {
+        // Check if it's a "not found" error (bd returns JSON with error field)
+        const output = result.stdout.trim() || result.stderr.trim()
+        if (
+          output.includes('not found') ||
+          output.includes('no issue found') ||
+          output.includes('no issues found') ||
+          output.includes('No bead')
+        ) {
+          return c.json(errorResponse('Bead not found', 'NOT_FOUND', `Bead '${id}' not found`), 404)
+        }
 
-    return c.json(response)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return c.json(errorResponse('Internal server error', 'INTERNAL_ERROR', message), 500)
-  }
-})
+        const errMessage = result.stderr.trim() || result.stdout.trim() || 'bd show command failed'
+        return c.json(errorResponse('Command failed', 'BD_ERROR', errMessage), 500)
+      }
 
-/**
- * GET /api/beads/:id
- * Get a single bead by ID.
- */
-beads.get('/beads/:id', async (c) => {
-  const id = c.req.param('id')
+      const bead = parseBeadShow(result.stdout)
 
-  try {
-    // Validate bead ID for safety
-    validateBeadId(id)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Invalid bead ID'
-    return c.json(errorResponse('Invalid bead ID', 'INVALID_ID', message), 400)
-  }
-
-  try {
-    const result = await runCli('bd', ['show', id, '--json'])
-
-    if (result.exitCode !== 0) {
-      // Check if it's a "not found" error (bd returns JSON with error field)
-      const output = result.stdout.trim() || result.stderr.trim()
-      if (
-        output.includes('not found') ||
-        output.includes('no issue found') ||
-        output.includes('no issues found') ||
-        output.includes('No bead')
-      ) {
+      if (!bead) {
         return c.json(errorResponse('Bead not found', 'NOT_FOUND', `Bead '${id}' not found`), 404)
       }
 
-      const errMessage = result.stderr.trim() || result.stdout.trim() || 'bd show command failed'
-      return c.json(errorResponse('Command failed', 'BD_ERROR', errMessage), 500)
+      const response: BeadShowResponse = {
+        bead,
+      }
+
+      return c.json(response)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      return c.json(errorResponse('Internal server error', 'INTERNAL_ERROR', message), 500)
     }
-
-    const bead = parseBeadShow(result.stdout)
-
-    if (!bead) {
-      return c.json(errorResponse('Bead not found', 'NOT_FOUND', `Bead '${id}' not found`), 404)
-    }
-
-    const response: BeadShowResponse = {
-      bead,
-    }
-
-    return c.json(response)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return c.json(errorResponse('Internal server error', 'INTERNAL_ERROR', message), 500)
-  }
-})
+  })
 
 export { beads }

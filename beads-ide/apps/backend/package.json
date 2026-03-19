@@ -13,9 +13,10 @@
     "test:watch": "vp test"
   },
   "dependencies": {
-    "@beads-ide/shared": "*",
+    "@beads-ide/shared": "workspace:*",
     "@hono/node-server": "^1.13.0",
-    "hono": "^4.6.0"
+    "hono": "^4.6.0",
+    "mysql2": "^3.20.0"
   },
   "devDependencies": {
     "tsx": "^4.19.0",
