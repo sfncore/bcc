@@ -153,16 +153,13 @@ function getNodeShapeStyle(type?: string): CSSProperties {
   switch (type?.toLowerCase()) {
     case 'epic':
       return {
-        clipPath: 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)',
-      }
-    case 'task':
-      return {
-        borderRadius: '50%',
+        borderRadius: '12px',
+        borderWidth: '3px',
       }
     case 'bug':
       return {
-        borderRadius: '6px',
-        transform: 'rotate(45deg)',
+        borderRadius: '2px',
+        borderStyle: 'dashed',
       }
     default:
       return {
@@ -181,75 +178,62 @@ function BeadNode({ data }: { data: BeadData }) {
   const borderColor =
     data.hasMetric && data.metricValue !== undefined ? metricColor(data.metricValue) : statusColor
   const shapeStyle = getNodeShapeStyle(data.type)
-  const isCircle = data.type?.toLowerCase() === 'task'
-  const isHexagon = data.type?.toLowerCase() === 'epic'
-  const isBug = data.type?.toLowerCase() === 'bug'
-
-  const width = isCircle ? NODE_HEIGHT : NODE_WIDTH
-  const height = NODE_HEIGHT
 
   return (
     <div
       style={{
-        transform: `scale(${scale})${isBug ? ' rotate(45deg)' : ''}`,
-        transition: data.reducedMotion ? 'none' : 'transform 0.2s ease, opacity 0.2s ease',
+        transform: scale !== 1 ? `scale(${scale})` : undefined,
+        transition: 'none',
       }}
     >
       <Handle type="target" position={Position.Top} style={{ background: '#555' }} />
       <div
         style={{
-          padding: isCircle ? '8px' : '12px 14px',
+          padding: '12px 14px',
           backgroundColor: '#2d2d2d',
           border: `2px solid ${borderColor}`,
-          width,
-          minHeight: height,
+          width: NODE_WIDTH,
+          minHeight: NODE_HEIGHT,
           opacity,
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          alignItems: isCircle ? 'center' : 'flex-start',
           ...shapeStyle,
-          ...(isBug ? { transform: 'none' } : {}),
         }}
       >
         <div
           style={{
             fontSize: '14px',
             color: '#aaa',
-            marginBottom: isCircle ? '2px' : '6px',
+            marginBottom: '6px',
             fontFamily: 'monospace',
             fontWeight: 600,
-            textAlign: isCircle ? 'center' : 'left',
-            ...(isBug ? { transform: 'rotate(-45deg)' } : {}),
           }}
         >
           {data.id}
         </div>
         <div
           style={{
-            fontSize: isCircle ? '12px' : '16px',
+            fontSize: '16px',
             color: '#fff',
             fontWeight: 600,
             overflow: 'hidden',
             display: '-webkit-box',
-            WebkitLineClamp: isCircle ? 1 : 3,
+            WebkitLineClamp: 3,
             WebkitBoxOrient: 'vertical',
-            textAlign: isCircle ? 'center' : 'left',
-            maxWidth: isCircle ? NODE_HEIGHT - 20 : NODE_WIDTH - 28,
+            maxWidth: NODE_WIDTH - 28,
             lineHeight: '1.3',
-            ...(isBug ? { transform: 'rotate(-45deg)' } : {}),
           }}
         >
           {data.title}
         </div>
-        {!isCircle && !isHexagon && data.type && (
+        {data.type && (
           <div
             style={{
               fontSize: '12px',
               color: '#888',
               marginTop: '4px',
               fontWeight: 500,
-              ...(isBug ? { transform: 'rotate(-45deg)' } : {}),
             }}
           >
             {data.type}
@@ -799,7 +783,7 @@ function applySimplification(
       source: e.from,
       target: e.to,
       type: 'default',
-      animated: isBlocks && !reducedMotion,
+      animated: false,
       style: {
         stroke: isDimmed ? 'rgba(100, 100, 100, 0.3)' : isBlocks ? '#888' : '#555',
         strokeDasharray: isBlocks ? undefined : '5,5',
