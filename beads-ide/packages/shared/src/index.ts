@@ -132,3 +132,11 @@ export type {
   SessionState,
   BeadsIDEConfig,
 } from './ide-types.js'
+
+// Mermaid export
+export {
+  toMermaid,
+  type MermaidNode,
+  type MermaidEdge,
+  type ToMermaidOptions,
+} from './to-mermaid.js'

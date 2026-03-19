@@ -1,12 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type { BeadFull } from "@beads-ide/shared";
 import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
+import { toMermaid } from "@beads-ide/shared";
 import { useCrossRigBeads } from "../hooks/use-crossrig-beads";
 import { useCrossRigGraph, getRigColor } from "../hooks/use-crossrig-graph";
 import { useConvoyGraph } from "../hooks/use-convoy-graph";
 import { useEpicGraph } from "../hooks/use-epic-graph";
 import { BeadStatusBadge } from "../components/beads/bead-status-badge";
 import { GraphView } from "../components/results/graph-view";
+import { MermaidView } from "../components/results/mermaid-view";
 import { api } from "../lib/rpc";
 import { useBeadSelection } from "../contexts";
 
@@ -33,7 +35,7 @@ function emptyFilters(): CrossRigFilterState {
 }
 
 type GroupMode = "none" | "rig" | "type" | "status";
-type ViewMode = "list" | "graph" | "convoy" | "epic";
+type ViewMode = "list" | "graph" | "mermaid" | "convoy" | "epic";
 
 // --- Styles ---
 
@@ -352,9 +354,12 @@ function CrossRigPage() {
                   Convoy: {convoyGraph?.convoy.title ?? selectedConvoyId}
                 </h2>
                 {convoyGraph && (
-                  <span style={{ fontSize: "11px", color: "#888" }}>
-                    {convoyGraph.nodeCount} beads &middot; {convoyGraph.waves.length} waves &middot; {Object.keys(convoyGraph.rigs).length} rigs
-                  </span>
+                  <>
+                    <span style={{ fontSize: "11px", color: "#888" }}>
+                      {convoyGraph.nodeCount} beads &middot; {convoyGraph.waves.length} waves &middot; {Object.keys(convoyGraph.rigs).length} rigs
+                    </span>
+                    <CopyMermaidBtn nodes={convoyGraph.nodes} edges={convoyGraph.edges} groupByRig />
+                  </>
                 )}
               </>
             )}
@@ -364,9 +369,12 @@ function CrossRigPage() {
                   Epic: {epicGraph?.epic.title ?? selectedEpicId}
                 </h2>
                 {epicGraph && (
-                  <span style={{ fontSize: "11px", color: "#888" }}>
-                    {epicGraph.nodeCount - 1} tasks &middot; {epicGraph.waves.length} waves &middot; {epicGraph.edgeCount} deps
-                  </span>
+                  <>
+                    <span style={{ fontSize: "11px", color: "#888" }}>
+                      {epicGraph.nodeCount - 1} tasks &middot; {epicGraph.waves.length} waves &middot; {epicGraph.edgeCount} deps
+                    </span>
+                    <CopyMermaidBtn nodes={epicGraph.nodes} edges={epicGraph.edges} />
+                  </>
                 )}
               </>
             )}
@@ -390,6 +398,13 @@ function CrossRigPage() {
                 onClick={() => setViewMode("graph")}
               >
                 Graph
+              </button>
+              <button
+                type="button"
+                style={viewToggleBtnStyle(viewMode === "mermaid")}
+                onClick={() => setViewMode("mermaid")}
+              >
+                Mermaid
               </button>
             </div>
           </>
@@ -595,6 +610,22 @@ function CrossRigPage() {
         </div>
       )}
 
+      {viewMode === "mermaid" && (
+        <div style={graphContainerStyle}>
+          {graphLoading && (
+            <div style={{ padding: "16px", color: "#888" }}>Loading graph data...</div>
+          )}
+          {graphError && (
+            <div style={{ padding: "16px", color: "#f14c4c" }}>Error: {graphError.message}</div>
+          )}
+          {graph && !graphLoading && (
+            <MermaidView
+              mermaid={toMermaid(graph.nodes, graph.edges, { groupByRig: true, direction: 'TD' })}
+            />
+          )}
+        </div>
+      )}
+
       {viewMode === "convoy" && selectedConvoyId && (
         <div style={graphContainerStyle}>
           {convoyLoading && (
@@ -695,6 +726,28 @@ function CrossRigPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Copy Mermaid syntax button */
+function CopyMermaidBtn({ nodes, edges, groupByRig }: { nodes: any[]; edges: any[]; groupByRig?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = useCallback(() => {
+    const mermaid = toMermaid(nodes, edges, { groupByRig, direction: 'TD' });
+    navigator.clipboard.writeText(mermaid).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [nodes, edges, groupByRig]);
+
+  return (
+    <button
+      type="button"
+      style={{ ...chipStyle(false), cursor: "pointer", fontSize: "10px" }}
+      onClick={handleCopy}
+    >
+      {copied ? "Copied!" : "Copy Mermaid"}
+    </button>
   );
 }
 
