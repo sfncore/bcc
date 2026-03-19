@@ -399,8 +399,13 @@ const crossrig = new Hono()
         return c.json({ error: 'Epic not found', code: 'NOT_FOUND' }, 404)
       }
 
-      // Find children: issues with IDs starting with epicId.
-      let childRows: any[]
+      // Find children via TWO methods:
+      // 1. Dotted ID prefix (e.g., epic lf-q5btn → children lf-q5btn.1, lf-q5btn.2)
+      // 2. Dependencies: issues with parent-child or blocks dep pointing to this epic
+      const childIdSet = new Set<string>()
+      let childRows: any[] = []
+
+      // Method 1: ID prefix match
       try {
         const [rows] = await conn.query(
           "SELECT id, title, status, issue_type, priority, labels FROM issues WHERE id LIKE ?",
@@ -413,6 +418,45 @@ const crossrig = new Hono()
           [`${epicId}.%`],
         )
         childRows = rows as any[]
+      }
+      for (const r of childRows) childIdSet.add(r.id)
+
+      // Method 2: Find issues linked via parent-child deps to this epic
+      if (await hasTable(conn, 'dependencies')) {
+        const [depChildRows] = await conn.query(
+          "SELECT issue_id FROM dependencies WHERE depends_on_id = ? AND type IN ('parent-child', 'blocks')",
+          [epicId],
+        )
+        const depChildIds = (depChildRows as any[])
+          .map((d: any) => d.issue_id)
+          .filter((id: string) => !childIdSet.has(id))
+
+        if (depChildIds.length > 0) {
+          const placeholders = depChildIds.map(() => '?').join(',')
+          try {
+            const [rows] = await conn.query(
+              `SELECT id, title, status, issue_type, priority, labels FROM issues WHERE id IN (${placeholders})`,
+              depChildIds,
+            )
+            for (const r of rows as any[]) {
+              if (!childIdSet.has(r.id)) {
+                childRows.push(r)
+                childIdSet.add(r.id)
+              }
+            }
+          } catch {
+            const [rows] = await conn.query(
+              `SELECT id, title, status, issue_type, priority FROM issues WHERE id IN (${placeholders})`,
+              depChildIds,
+            )
+            for (const r of rows as any[]) {
+              if (!childIdSet.has(r.id)) {
+                childRows.push(r)
+                childIdSet.add(r.id)
+              }
+            }
+          }
+        }
       }
 
       // Build nodes: epic + children
@@ -429,9 +473,7 @@ const crossrig = new Hono()
         },
       ]
 
-      const childIds = new Set<string>()
       for (const child of childRows) {
-        childIds.add(child.id)
         nodes.push({
           id: child.id,
           title: child.title,
@@ -446,8 +488,8 @@ const crossrig = new Hono()
 
       // Get dependencies between children
       const edges: any[] = []
-      if (childIds.size > 0 && await hasTable(conn, 'dependencies')) {
-        const allIds = [epicId, ...childIds]
+      if (childIdSet.size > 0 && await hasTable(conn, 'dependencies')) {
+        const allIds = [epicId, ...childIdSet]
         const placeholders = allIds.map(() => '?').join(',')
         const [depRows] = await conn.query(
           `SELECT issue_id, depends_on_id, type FROM dependencies WHERE issue_id IN (${placeholders})`,
@@ -455,7 +497,7 @@ const crossrig = new Hono()
         )
         for (const dep of depRows as any[]) {
           // Include edges between epic children, and child→epic edges
-          if (childIds.has(dep.depends_on_id) || dep.depends_on_id === epicId) {
+          if (childIdSet.has(dep.depends_on_id) || dep.depends_on_id === epicId) {
             edges.push({
               from: dep.depends_on_id,
               to: dep.issue_id,
@@ -469,7 +511,7 @@ const crossrig = new Hono()
       await conn.end()
 
       // Compute waves (exclude epic itself, only slingable children)
-      const slingableIds = new Set([...childIds])
+      const slingableIds = new Set([...childIdSet])
       const inDegree = new Map<string, number>()
       const adj = new Map<string, string[]>()
       for (const id of slingableIds) {
