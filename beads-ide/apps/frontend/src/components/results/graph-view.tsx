@@ -3,10 +3,12 @@ import {
   BackgroundVariant,
   Controls,
   type Edge,
+  Handle,
   MiniMap,
   type Node,
   type NodeTypes,
   Panel,
+  Position,
   ReactFlow,
   useEdgesState,
   useNodesState,
@@ -193,9 +195,10 @@ function BeadNode({ data }: { data: BeadData }) {
         transition: data.reducedMotion ? 'none' : 'transform 0.2s ease, opacity 0.2s ease',
       }}
     >
+      <Handle type="target" position={Position.Top} style={{ background: '#555' }} />
       <div
         style={{
-          padding: isCircle ? '8px' : '10px 12px',
+          padding: isCircle ? '8px' : '12px 14px',
           backgroundColor: '#2d2d2d',
           border: `2px solid ${borderColor}`,
           width,
@@ -253,6 +256,7 @@ function BeadNode({ data }: { data: BeadData }) {
           </div>
         )}
       </div>
+      <Handle type="source" position={Position.Bottom} style={{ background: '#555' }} />
     </div>
   )
 }
@@ -262,16 +266,18 @@ function BeadNode({ data }: { data: BeadData }) {
  */
 function ClusterNode({ data }: { data: ClusterData }) {
   return (
-    <div
-      style={{
-        padding: '12px 14px',
-        borderRadius: '8px',
-        backgroundColor: '#3d3d3d',
-        border: '2px dashed #007acc',
-        width: CLUSTER_NODE_WIDTH,
-        minHeight: CLUSTER_NODE_HEIGHT,
-      }}
-    >
+    <div>
+      <Handle type="target" position={Position.Top} style={{ background: '#007acc' }} />
+      <div
+        style={{
+          padding: '12px 14px',
+          borderRadius: '8px',
+          backgroundColor: '#3d3d3d',
+          border: '2px dashed #007acc',
+          width: CLUSTER_NODE_WIDTH,
+          minHeight: CLUSTER_NODE_HEIGHT,
+        }}
+      >
       <div
         style={{
           fontSize: '11px',
@@ -303,6 +309,8 @@ function ClusterNode({ data }: { data: ClusterData }) {
       >
         {data.childCount} beads collapsed
       </div>
+      </div>
+      <Handle type="source" position={Position.Bottom} style={{ background: '#007acc' }} />
     </div>
   )
 }

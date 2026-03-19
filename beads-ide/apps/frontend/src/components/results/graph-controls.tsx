@@ -40,7 +40,7 @@ export const DEFAULT_SIMPLIFICATION_STATE: GraphSimplificationState = {
   epicClustering: false,
   focusMode: false,
   focusHops: 2,
-  semanticZoom: true,
+  semanticZoom: false,
   fisheyeMode: false,
   selectedNodeId: null,
   layout: 'hierarchical',
