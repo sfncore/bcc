@@ -370,6 +370,165 @@ const crossrig = new Hono()
     }
   })
 
+  .get('/crossrig/epic/:id/graph', async (c) => {
+    const epicId = c.req.param('id')
+
+    try {
+      // Determine which rig database the epic lives in by prefix
+      const allDatabases = await getRigDatabases()
+      let epicDb: string | null = null
+      for (const db of allDatabases) {
+        const shortName = db.replace(/^beads_/, '')
+        if (epicId.startsWith(`${shortName}-`)) {
+          epicDb = db
+          break
+        }
+      }
+      if (!epicDb) epicDb = 'hq'
+
+      const conn = await getConnection(epicDb)
+
+      // Verify epic exists
+      const [epicRows] = await conn.query(
+        'SELECT id, title, status, issue_type, priority FROM issues WHERE id = ?',
+        [epicId],
+      )
+      const epic = (epicRows as any[])[0]
+      if (!epic) {
+        await conn.end()
+        return c.json({ error: 'Epic not found', code: 'NOT_FOUND' }, 404)
+      }
+
+      // Find children: issues with IDs starting with epicId.
+      let childRows: any[]
+      try {
+        const [rows] = await conn.query(
+          "SELECT id, title, status, issue_type, priority, labels FROM issues WHERE id LIKE ?",
+          [`${epicId}.%`],
+        )
+        childRows = rows as any[]
+      } catch {
+        const [rows] = await conn.query(
+          "SELECT id, title, status, issue_type, priority FROM issues WHERE id LIKE ?",
+          [`${epicId}.%`],
+        )
+        childRows = rows as any[]
+      }
+
+      // Build nodes: epic + children
+      const nodes: any[] = [
+        {
+          id: epic.id,
+          title: epic.title,
+          status: epic.status,
+          type: epic.issue_type,
+          priority: epic.priority,
+          labels: [],
+          _rig_db: epicDb,
+          wave: 0,
+        },
+      ]
+
+      const childIds = new Set<string>()
+      for (const child of childRows) {
+        childIds.add(child.id)
+        nodes.push({
+          id: child.id,
+          title: child.title,
+          status: child.status,
+          type: child.issue_type,
+          priority: child.priority,
+          labels: child.labels ? (typeof child.labels === 'string' ? JSON.parse(child.labels) : child.labels) : [],
+          _rig_db: epicDb,
+          wave: 0,
+        })
+      }
+
+      // Get dependencies between children
+      const edges: any[] = []
+      if (childIds.size > 0 && await hasTable(conn, 'dependencies')) {
+        const allIds = [epicId, ...childIds]
+        const placeholders = allIds.map(() => '?').join(',')
+        const [depRows] = await conn.query(
+          `SELECT issue_id, depends_on_id, type FROM dependencies WHERE issue_id IN (${placeholders})`,
+          allIds,
+        )
+        for (const dep of depRows as any[]) {
+          // Include edges between epic children, and child→epic edges
+          if (childIds.has(dep.depends_on_id) || dep.depends_on_id === epicId) {
+            edges.push({
+              from: dep.depends_on_id,
+              to: dep.issue_id,
+              type: dep.type,
+              _rig_db: epicDb,
+            })
+          }
+        }
+      }
+
+      await conn.end()
+
+      // Compute waves (exclude epic itself, only slingable children)
+      const slingableIds = new Set([...childIds])
+      const inDegree = new Map<string, number>()
+      const adj = new Map<string, string[]>()
+      for (const id of slingableIds) {
+        inDegree.set(id, 0)
+        adj.set(id, [])
+      }
+      for (const edge of edges) {
+        if (slingableIds.has(edge.from) && slingableIds.has(edge.to)) {
+          inDegree.set(edge.to, (inDegree.get(edge.to) ?? 0) + 1)
+          adj.get(edge.from)?.push(edge.to)
+        }
+      }
+
+      const waves: string[][] = []
+      const remaining = new Set(slingableIds)
+      while (remaining.size > 0) {
+        const wave: string[] = []
+        for (const id of remaining) {
+          if ((inDegree.get(id) ?? 0) === 0) wave.push(id)
+        }
+        if (wave.length === 0) {
+          waves.push([...remaining])
+          break
+        }
+        waves.push(wave)
+        for (const id of wave) {
+          remaining.delete(id)
+          for (const next of adj.get(id) ?? []) {
+            if (remaining.has(next)) {
+              inDegree.set(next, (inDegree.get(next) ?? 0) - 1)
+            }
+          }
+        }
+      }
+
+      // Tag children with wave number
+      const nodeWaveMap = new Map<string, number>()
+      for (let i = 0; i < waves.length; i++) {
+        for (const id of waves[i]) nodeWaveMap.set(id, i + 1)
+      }
+      for (const node of nodes) {
+        if (node.id !== epicId) node.wave = nodeWaveMap.get(node.id) ?? 0
+      }
+
+      return c.json({
+        epic: { id: epic.id, title: epic.title, status: epic.status, type: epic.issue_type },
+        nodes,
+        edges,
+        waves,
+        nodeCount: nodes.length,
+        edgeCount: edges.length,
+        rigs: { [epicDb]: nodes.length },
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      return c.json({ error: 'Epic graph query failed', code: 'CROSSRIG_ERROR', details: message }, 500)
+    }
+  })
+
   .get('/crossrig/convoy/:id/graph', async (c) => {
     const convoyId = c.req.param('id')
 

@@ -4,6 +4,7 @@ import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "r
 import { useCrossRigBeads } from "../hooks/use-crossrig-beads";
 import { useCrossRigGraph, getRigColor } from "../hooks/use-crossrig-graph";
 import { useConvoyGraph } from "../hooks/use-convoy-graph";
+import { useEpicGraph } from "../hooks/use-epic-graph";
 import { BeadStatusBadge } from "../components/beads/bead-status-badge";
 import { GraphView } from "../components/results/graph-view";
 import { api } from "../lib/rpc";
@@ -32,7 +33,7 @@ function emptyFilters(): CrossRigFilterState {
 }
 
 type GroupMode = "none" | "rig" | "type" | "status";
-type ViewMode = "list" | "graph" | "convoy";
+type ViewMode = "list" | "graph" | "convoy" | "epic";
 
 // --- Styles ---
 
@@ -214,6 +215,7 @@ function CrossRigPage() {
   const [searchText, setSearchText] = useState("");
   const [excludeNoise, setExcludeNoise] = useState(true);
   const [selectedConvoyId, setSelectedConvoyId] = useState<string | null>(null);
+  const [selectedEpicId, setSelectedEpicId] = useState<string | null>(null);
 
   const { beads, count, rigStats, isLoading, error, refresh } = useCrossRigBeads({
     exclude_noise: excludeNoise,
@@ -225,6 +227,7 @@ function CrossRigPage() {
   });
 
   const { graph: convoyGraph, isLoading: convoyLoading, error: convoyError, refresh: refreshConvoy } = useConvoyGraph(selectedConvoyId);
+  const { graph: epicGraph, isLoading: epicLoading, error: epicError, refresh: refreshEpic } = useEpicGraph(selectedEpicId);
 
   // Fetch convoy summaries for enriching list rows
   const [convoySummaries, setConvoySummaries] = useState<Map<string, { tracked: number; rigs: string[] }>>(new Map());
@@ -253,11 +256,16 @@ function CrossRigPage() {
     }).catch(() => {});
   }, []);
 
-  // Handle bead click — drill into convoys, open detail for others
+  // Handle bead click — drill into convoys/epics, open detail for others
   const handleBeadClick = useCallback((bead: any) => {
     if (bead.issue_type === "convoy") {
       setSelectedConvoyId(bead.id);
+      setSelectedEpicId(null);
       setViewMode("convoy");
+    } else if (bead.issue_type === "epic") {
+      setSelectedEpicId(bead.id);
+      setSelectedConvoyId(null);
+      setViewMode("epic");
     } else {
       selectBead(bead.id);
     }
@@ -329,22 +337,38 @@ function CrossRigPage() {
     <div style={containerStyle}>
       {/* Header */}
       <div style={headerStyle}>
-        {viewMode === "convoy" && selectedConvoyId ? (
+        {(viewMode === "convoy" && selectedConvoyId) || (viewMode === "epic" && selectedEpicId) ? (
           <>
             <button
               type="button"
               style={{ ...chipStyle(false), cursor: "pointer", fontSize: "13px" }}
-              onClick={() => { setViewMode("list"); setSelectedConvoyId(null); }}
+              onClick={() => { setViewMode("list"); setSelectedConvoyId(null); setSelectedEpicId(null); }}
             >
               &larr; Back
             </button>
-            <h2 style={{ margin: 0, fontSize: "16px" }}>
-              Convoy: {convoyGraph?.convoy.title ?? selectedConvoyId}
-            </h2>
-            {convoyGraph && (
-              <span style={{ fontSize: "11px", color: "#888" }}>
-                {convoyGraph.nodeCount} beads &middot; {convoyGraph.waves.length} waves &middot; {Object.keys(convoyGraph.rigs).length} rigs
-              </span>
+            {viewMode === "convoy" && (
+              <>
+                <h2 style={{ margin: 0, fontSize: "16px" }}>
+                  Convoy: {convoyGraph?.convoy.title ?? selectedConvoyId}
+                </h2>
+                {convoyGraph && (
+                  <span style={{ fontSize: "11px", color: "#888" }}>
+                    {convoyGraph.nodeCount} beads &middot; {convoyGraph.waves.length} waves &middot; {Object.keys(convoyGraph.rigs).length} rigs
+                  </span>
+                )}
+              </>
+            )}
+            {viewMode === "epic" && (
+              <>
+                <h2 style={{ margin: 0, fontSize: "16px", color: "#4ade80" }}>
+                  Epic: {epicGraph?.epic.title ?? selectedEpicId}
+                </h2>
+                {epicGraph && (
+                  <span style={{ fontSize: "11px", color: "#888" }}>
+                    {epicGraph.nodeCount - 1} tasks &middot; {epicGraph.waves.length} waves &middot; {epicGraph.edgeCount} deps
+                  </span>
+                )}
+              </>
             )}
           </>
         ) : (
@@ -403,7 +427,7 @@ function CrossRigPage() {
 
         <button
           type="button"
-          onClick={viewMode === "convoy" ? refreshConvoy : viewMode === "graph" ? refreshGraph : refresh}
+          onClick={viewMode === "epic" ? refreshEpic : viewMode === "convoy" ? refreshConvoy : viewMode === "graph" ? refreshGraph : refresh}
           style={{ ...chipStyle(false), cursor: "pointer" }}
         >
           Refresh
@@ -537,6 +561,9 @@ function CrossRigPage() {
                       {isConvoy && !summary && (
                         <span style={{ fontSize: "10px", color: "#4fc1ff", flexShrink: 0 }}>View →</span>
                       )}
+                      {isEpic && (
+                        <span style={{ fontSize: "10px", color: "#4ade80", flexShrink: 0 }}>View →</span>
+                      )}
                     </div>
                   );
                 })}
@@ -592,6 +619,56 @@ function CrossRigPage() {
                 </span>
                 {convoyGraph.waves.map((wave, i) => {
                   const waveNodes = convoyGraph.nodes.filter((n) => n.wave === i + 1);
+                  const done = waveNodes.filter((n) => n.status === "closed").length;
+                  const total = waveNodes.length;
+                  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                  return (
+                    <span
+                      key={i}
+                      style={{ fontSize: "11px", display: "flex", alignItems: "center", gap: "4px" }}
+                    >
+                      <span style={{
+                        width: "18px", height: "18px", borderRadius: "50%",
+                        backgroundColor: pct === 100 ? "#22c55e" : pct > 0 ? "#f59e0b" : "#555",
+                        color: "#fff", fontSize: "9px", fontWeight: 700,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        {i + 1}
+                      </span>
+                      <span style={{ color: "#ccc" }}>{done}/{total}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {viewMode === "epic" && selectedEpicId && (
+        <div style={graphContainerStyle}>
+          {epicLoading && (
+            <div style={{ padding: "16px", color: "#888" }}>Loading epic graph...</div>
+          )}
+          {epicError && (
+            <div style={{ padding: "16px", color: "#f14c4c" }}>Error: {epicError.message}</div>
+          )}
+          {epicGraph && !epicLoading && (
+            <>
+              <GraphView
+                nodes={epicGraph.nodes}
+                edges={epicGraph.edges}
+                density={epicGraph.density}
+                onBeadClick={(id) => selectBead(id)}
+              />
+              <RigLegend rigs={epicGraph.rigs} />
+              {/* Wave progress overlay */}
+              <div style={waveLegendStyle}>
+                <span style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  Waves:
+                </span>
+                {epicGraph.waves.map((wave, i) => {
+                  const waveNodes = epicGraph.nodes.filter((n) => n.wave === i + 1);
                   const done = waveNodes.filter((n) => n.status === "closed").length;
                   const total = waveNodes.length;
                   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
