@@ -782,15 +782,24 @@ function applySimplification(
       id: `e-${i}-${e.from}-${e.to}`,
       source: e.from,
       target: e.to,
-      type: 'default',
+      type: 'smoothstep',
       animated: false,
       style: {
-        stroke: isDimmed ? 'rgba(100, 100, 100, 0.3)' : isBlocks ? '#888' : '#555',
+        stroke: isDimmed ? 'rgba(100, 100, 100, 0.3)' : isBlocks ? '#ef4444' : '#666',
         strokeDasharray: isBlocks ? undefined : '5,5',
-        strokeWidth: isBlocks ? 2 : 1,
+        strokeWidth: isBlocks ? 3 : 2,
+      },
+      markerEnd: {
+        type: 'arrowclosed' as any,
+        color: isDimmed ? 'rgba(100,100,100,0.3)' : isBlocks ? '#ef4444' : '#666',
+        width: 16,
+        height: 16,
       },
       label: isBlocks ? undefined : e.type,
-      labelStyle: { fill: '#888', fontSize: 10 },
+      labelStyle: { fill: '#aaa', fontSize: 11 },
+      labelBgStyle: { fill: '#1e1e1e', fillOpacity: 0.8 },
+      labelBgPadding: [4, 2] as [number, number],
+      labelBgBorderRadius: 3,
     }
   })
 
