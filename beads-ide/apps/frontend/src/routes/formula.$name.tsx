@@ -1,4 +1,5 @@
-import type { PourResult, ProtoBead, SlingRequest } from '@beads-ide/shared'
+import type { CookResult, PourResult, ProtoBead, SlingRequest } from '@beads-ide/shared'
+import { toMermaid, type MermaidNode, type MermaidEdge } from '@beads-ide/shared'
 /**
  * Formula editor route with text/visual view toggle and sling workflow.
  * Displays formula TOML in text mode or as a DAG in visual mode.
@@ -6,6 +7,7 @@ import type { PourResult, ProtoBead, SlingRequest } from '@beads-ide/shared'
  * Includes Cook preview, Sling dispatch, and Pour (local execution) functionality.
  * Step nodes in Visual view can be clicked to edit in the StepEditorPanel.
  */
+import { MermaidView } from '../components/results/mermaid-view'
 import { createFileRoute } from '@tanstack/react-router'
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
@@ -35,7 +37,7 @@ import {
 
 // --- Types ---
 
-type ViewMode = 'text' | 'outline' | 'flow' | 'visual'
+type ViewMode = 'text' | 'outline' | 'flow' | 'visual' | 'mermaid'
 
 // --- Styles ---
 
@@ -642,6 +644,15 @@ function FormulaPage() {
             >
               Visual
             </button>
+            <button
+              type="button"
+              style={toggleButtonStyle(viewMode === 'mermaid')}
+              onClick={() => handleToggleMode('mermaid')}
+              aria-pressed={viewMode === 'mermaid'}
+              title="Mermaid diagram"
+            >
+              Mermaid
+            </button>
           </div>
         </div>
       </div>
@@ -710,6 +721,10 @@ function FormulaPage() {
                 <div style={loadingStyle}>No steps to visualize</div>
               )}
             </div>
+          )}
+
+          {!isLoading && !contentLoading && !error && !contentError && viewMode === 'mermaid' && (
+            <FormulaMermaidView result={result} />
           )}
         </div>
 
@@ -793,4 +808,37 @@ function FormulaPage() {
       )}
     </div>
   )
+}
+
+/** Convert CookResult to Mermaid and render via FrankenMermaid WASM */
+function FormulaMermaidView({ result }: { result: CookResult | null }) {
+  const mermaid = useMemo(() => {
+    if (!result?.ok || !result.steps) return null
+
+    const nodes: MermaidNode[] = []
+    const edges: MermaidEdge[] = []
+
+    for (const [stepId, step] of Object.entries(result.steps)) {
+      nodes.push({
+        id: stepId,
+        title: (step as any).title ?? stepId,
+        type: (step as any).type ?? 'task',
+      })
+
+      const deps = (step as any).depends_on ?? (step as any).blocking ?? []
+      if (Array.isArray(deps)) {
+        for (const dep of deps) {
+          edges.push({ from: dep, to: stepId, type: 'blocks' })
+        }
+      }
+    }
+
+    return toMermaid(nodes, edges, { direction: 'TD', showWaves: false })
+  }, [result])
+
+  if (!mermaid) {
+    return <div style={{ padding: '16px', color: '#888' }}>Cook the formula first to generate a Mermaid diagram</div>
+  }
+
+  return <MermaidView mermaid={mermaid} />
 }

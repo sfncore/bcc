@@ -17,6 +17,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
+      "@beads-ide/frankenmermaid": resolve(__dirname, "../../packages/frankenmermaid/frankenmermaid.js"),
     },
   },
   server: {

@@ -66,7 +66,8 @@ export function MermaidView({ mermaid, theme = 'dark' }: MermaidViewProps) {
       try {
         if (!fmRef.current) {
           const fm = await import('@beads-ide/frankenmermaid')
-          await fm.default()
+          // Load WASM from public directory
+          await fm.default('/frankenmermaid_bg.wasm')
           fm.init({ theme })
           fmRef.current = fm
         }
