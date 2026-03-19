@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import type {
   TreeError,
@@ -29,6 +30,60 @@ const PRUNE_DIRS = new Set([
   '.venv',
   'target',
 ])
+
+/**
+ * Generate a human-readable label for a formula search path.
+ */
+function getSearchPathLabel(searchPath: string, projectRoot: string): string {
+  const home = homedir()
+  const gtRoot = process.env.GT_ROOT
+
+  if (searchPath === resolve(projectRoot, 'formulas')) return 'Project formulas'
+  if (searchPath === resolve(projectRoot, '.beads', 'formulas')) return 'Project .beads'
+  if (searchPath === resolve(home, '.beads', 'formulas')) return 'User formulas'
+  if (gtRoot && searchPath === resolve(gtRoot, '.beads', 'formulas')) return 'Gas Town formulas'
+
+  // For rig paths, extract the rig name
+  if (gtRoot && searchPath.startsWith(gtRoot)) {
+    const rel = searchPath.slice(gtRoot.length + 1)
+    const rigName = rel.split('/')[0]
+    if (rigName) return `${rigName} formulas`
+  }
+
+  return basename(searchPath)
+}
+
+/**
+ * Scan a single directory (non-recursive) for formula files.
+ * Returns formula TreeNodes found directly in the directory.
+ */
+function scanFormulasFlat(dirPath: string): TreeNode[] {
+  const nodes: TreeNode[] = []
+  try {
+    const entries = readdirSync(dirPath)
+    entries.sort()
+    for (const entry of entries) {
+      if (entry.endsWith('.formula.toml') || entry.endsWith('.formula.json')) {
+        const fullPath = join(dirPath, entry)
+        try {
+          if (statSync(fullPath).isFile()) {
+            nodes.push({
+              name: entry,
+              path: fullPath,
+              type: 'formula',
+              formulaName: entry.replace(/\.formula\.(toml|json)$/, ''),
+            })
+          }
+        } catch {
+          // Skip unreadable files
+        }
+      }
+    }
+  } catch {
+    // Directory doesn't exist or can't be read
+  }
+  return nodes
+}
 
 /**
  * Count formula files in search paths.
@@ -342,6 +397,43 @@ priority = 1
     try {
       const counter = { count: 0 }
       const nodes = await scanTree(root, counter)
+
+      // Merge formulas from search paths outside the workspace root
+      const config = getConfig()
+      const resolvedRoot = resolve(root)
+      const seenFormulas = new Set<string>()
+
+      // Collect formula names already in the tree
+      function collectFormulaNames(treeNodes: TreeNode[]) {
+        for (const n of treeNodes) {
+          if (n.type === 'formula' && n.formulaName) seenFormulas.add(n.formulaName)
+          if (n.children) collectFormulaNames(n.children)
+        }
+      }
+      collectFormulaNames(nodes)
+
+      // Add external search path formulas as labeled top-level directories
+      for (const searchPath of config.formulaPaths) {
+        const resolvedPath = resolve(searchPath)
+        // Skip paths already under workspace root (already scanned)
+        if (resolvedPath.startsWith(resolvedRoot + '/') || resolvedPath === resolvedRoot) continue
+
+        const formulas = scanFormulasFlat(resolvedPath)
+        // Filter out formulas already present (by name) to avoid duplicates
+        const newFormulas = formulas.filter((f) => !seenFormulas.has(f.formulaName!))
+        if (newFormulas.length === 0) continue
+
+        for (const f of newFormulas) seenFormulas.add(f.formulaName!)
+
+        const label = getSearchPathLabel(resolvedPath, config.projectRoot)
+        counter.count += newFormulas.length + 1 // formulas + directory node
+        nodes.push({
+          name: label,
+          path: resolvedPath,
+          type: 'directory',
+          children: newFormulas,
+        })
+      }
 
       const response: TreeResponse = {
         ok: true,

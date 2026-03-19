@@ -318,6 +318,13 @@ describe("GET /api/tree", () => {
     writeFileSync(join(tempDir, "src", "index.ts"), "");
 
     vi.spyOn(config, "getWorkspaceRoot").mockReturnValue(tempDir);
+    vi.spyOn(config, "getConfig").mockReturnValue({
+      formulaPaths: [],
+      projectRoot: tempDir,
+      bdBinary: "bd",
+      gtBinary: "gt",
+      bvBinary: "bv",
+    });
 
     const res = await app.request("/api/tree");
     expect(res.status).toBe(200);
@@ -338,6 +345,13 @@ describe("GET /api/tree", () => {
     writeFileSync(join(formulasDir, "test.formula.json"), "{}");
 
     vi.spyOn(config, "getWorkspaceRoot").mockReturnValue(tempDir);
+    vi.spyOn(config, "getConfig").mockReturnValue({
+      formulaPaths: [formulasDir],
+      projectRoot: tempDir,
+      bdBinary: "bd",
+      gtBinary: "gt",
+      bvBinary: "bv",
+    });
 
     const res = await app.request("/api/tree");
     expect(res.status).toBe(200);
@@ -371,6 +385,13 @@ describe("GET /api/tree", () => {
     writeFileSync(join(tempDir, "has-formulas", "a.formula.toml"), "");
 
     vi.spyOn(config, "getWorkspaceRoot").mockReturnValue(tempDir);
+    vi.spyOn(config, "getConfig").mockReturnValue({
+      formulaPaths: [],
+      projectRoot: tempDir,
+      bdBinary: "bd",
+      gtBinary: "gt",
+      bvBinary: "bv",
+    });
 
     const res = await app.request("/api/tree");
     const body = (await res.json()) as TreeResponse;
@@ -393,6 +414,13 @@ describe("GET /api/tree", () => {
     writeFileSync(join(tempDir, "visible", "d.formula.toml"), "");
 
     vi.spyOn(config, "getWorkspaceRoot").mockReturnValue(tempDir);
+    vi.spyOn(config, "getConfig").mockReturnValue({
+      formulaPaths: [],
+      projectRoot: tempDir,
+      bdBinary: "bd",
+      gtBinary: "gt",
+      bvBinary: "bv",
+    });
 
     const res = await app.request("/api/tree");
     const body = (await res.json()) as TreeResponse;
@@ -417,6 +445,13 @@ describe("GET /api/tree", () => {
     }
 
     vi.spyOn(config, "getWorkspaceRoot").mockReturnValue(tempDir);
+    vi.spyOn(config, "getConfig").mockReturnValue({
+      formulaPaths: [],
+      projectRoot: tempDir,
+      bdBinary: "bd",
+      gtBinary: "gt",
+      bvBinary: "bv",
+    });
 
     const res = await app.request("/api/tree");
     const body = (await res.json()) as TreeResponse;
@@ -428,6 +463,80 @@ describe("GET /api/tree", () => {
       expect(body.totalCount).toBeGreaterThanOrEqual(500);
       expect(body.totalCount).toBeLessThanOrEqual(510);
     }
+  });
+
+  it("merges formulas from external search paths", async () => {
+    // Create workspace with one local formula
+    const localFormulas = join(tempDir, "formulas");
+    mkdirSync(localFormulas);
+    writeFileSync(join(localFormulas, "local.formula.toml"), "");
+
+    // Create an external search path outside workspace root
+    const externalDir = mkdtempSync(join(tmpdir(), "ext-formulas-"));
+    writeFileSync(join(externalDir, "remote.formula.toml"), "");
+    writeFileSync(join(externalDir, "shared.formula.toml"), "");
+
+    vi.spyOn(config, "getWorkspaceRoot").mockReturnValue(tempDir);
+    vi.spyOn(config, "getConfig").mockReturnValue({
+      formulaPaths: [localFormulas, externalDir],
+      projectRoot: tempDir,
+      bdBinary: "bd",
+      gtBinary: "gt",
+      bvBinary: "bv",
+    });
+
+    const res = await app.request("/api/tree");
+    const body = (await res.json()) as TreeResponse;
+    expect(body.ok).toBe(true);
+    if (body.ok) {
+      // Local: 1 dir + 1 formula = 2, External: 1 dir + 2 formulas = 3
+      expect(body.totalCount).toBe(5);
+
+      // Local formulas present under workspace tree
+      const localNode = body.nodes.find((n) => n.name === "formulas");
+      expect(localNode).toBeDefined();
+      expect(localNode?.children).toHaveLength(1);
+
+      // External formulas present as a labeled directory
+      const externalNode = body.nodes.find((n) => n.path === externalDir);
+      expect(externalNode).toBeDefined();
+      expect(externalNode?.type).toBe("directory");
+      expect(externalNode?.children).toHaveLength(2);
+    }
+
+    rmSync(externalDir, { recursive: true, force: true });
+  });
+
+  it("deduplicates formulas by name across search paths", async () => {
+    // Create workspace with a formula
+    const localFormulas = join(tempDir, "formulas");
+    mkdirSync(localFormulas);
+    writeFileSync(join(localFormulas, "deploy.formula.toml"), "");
+
+    // External path has same formula name
+    const externalDir = mkdtempSync(join(tmpdir(), "ext-dup-"));
+    writeFileSync(join(externalDir, "deploy.formula.toml"), "");
+    writeFileSync(join(externalDir, "unique.formula.toml"), "");
+
+    vi.spyOn(config, "getWorkspaceRoot").mockReturnValue(tempDir);
+    vi.spyOn(config, "getConfig").mockReturnValue({
+      formulaPaths: [localFormulas, externalDir],
+      projectRoot: tempDir,
+      bdBinary: "bd",
+      gtBinary: "gt",
+      bvBinary: "bv",
+    });
+
+    const res = await app.request("/api/tree");
+    const body = (await res.json()) as TreeResponse;
+    expect(body.ok).toBe(true);
+    if (body.ok) {
+      // Local: 1 dir + 1 formula = 2, External: 1 dir + 1 unique formula = 2
+      // (deploy is deduplicated)
+      expect(body.totalCount).toBe(4);
+    }
+
+    rmSync(externalDir, { recursive: true, force: true });
   });
 
   it("returns 404 when workspace root does not exist", async () => {
@@ -450,6 +559,13 @@ describe("GET /api/tree", () => {
     writeFileSync(join(ab, "deep.formula.toml"), "");
 
     vi.spyOn(config, "getWorkspaceRoot").mockReturnValue(tempDir);
+    vi.spyOn(config, "getConfig").mockReturnValue({
+      formulaPaths: [],
+      projectRoot: tempDir,
+      bdBinary: "bd",
+      gtBinary: "gt",
+      bvBinary: "bv",
+    });
 
     const res = await app.request("/api/tree");
     const body = (await res.json()) as TreeResponse;
@@ -477,6 +593,13 @@ describe("GET /api/tree", () => {
     }
 
     vi.spyOn(config, "getWorkspaceRoot").mockReturnValue(tempDir);
+    vi.spyOn(config, "getConfig").mockReturnValue({
+      formulaPaths: [],
+      projectRoot: tempDir,
+      bdBinary: "bd",
+      gtBinary: "gt",
+      bvBinary: "bv",
+    });
 
     const start = performance.now();
     const res = await app.request("/api/tree");
