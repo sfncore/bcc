@@ -117,8 +117,8 @@ const FISHEYE_RADIUS = 200 // Radius of fisheye effect in pixels
 const FISHEYE_DISTORTION = 3 // Distortion strength (higher = more magnification)
 
 // Node style constants
-const NODE_WIDTH = 240
-const NODE_HEIGHT = 80
+const NODE_WIDTH = 280
+const NODE_HEIGHT = 100
 const CLUSTER_NODE_WIDTH = 200
 const CLUSTER_NODE_HEIGHT = 80
 
@@ -211,10 +211,11 @@ function BeadNode({ data }: { data: BeadData }) {
       >
         <div
           style={{
-            fontSize: '11px',
-            color: '#888',
-            marginBottom: isCircle ? '2px' : '4px',
+            fontSize: '14px',
+            color: '#aaa',
+            marginBottom: isCircle ? '2px' : '6px',
             fontFamily: 'monospace',
+            fontWeight: 600,
             textAlign: isCircle ? 'center' : 'left',
             ...(isBug ? { transform: 'rotate(-45deg)' } : {}),
           }}
@@ -223,15 +224,15 @@ function BeadNode({ data }: { data: BeadData }) {
         </div>
         <div
           style={{
-            fontSize: isCircle ? '10px' : '13px',
-            color: '#ccc',
-            fontWeight: 500,
+            fontSize: isCircle ? '12px' : '16px',
+            color: '#fff',
+            fontWeight: 600,
             overflow: 'hidden',
             display: '-webkit-box',
-            WebkitLineClamp: isCircle ? 1 : 2,
+            WebkitLineClamp: isCircle ? 1 : 3,
             WebkitBoxOrient: 'vertical',
             textAlign: isCircle ? 'center' : 'left',
-            maxWidth: isCircle ? NODE_HEIGHT - 20 : NODE_WIDTH - 24,
+            maxWidth: isCircle ? NODE_HEIGHT - 20 : NODE_WIDTH - 28,
             lineHeight: '1.3',
             ...(isBug ? { transform: 'rotate(-45deg)' } : {}),
           }}
@@ -241,9 +242,10 @@ function BeadNode({ data }: { data: BeadData }) {
         {!isCircle && !isHexagon && data.type && (
           <div
             style={{
-              fontSize: '10px',
-              color: '#666',
+              fontSize: '12px',
+              color: '#888',
               marginTop: '4px',
+              fontWeight: 500,
               ...(isBug ? { transform: 'rotate(-45deg)' } : {}),
             }}
           >
@@ -585,7 +587,7 @@ function applyHierarchicalLayout(nodes: Node<NodeData>[], edges: Edge[]): Node<N
 
   const g = new dagre.graphlib.Graph()
   g.setDefaultEdgeLabel(() => ({}))
-  g.setGraph({ rankdir: 'TB', nodesep: 80, ranksep: 120, marginx: 50, marginy: 50 })
+  g.setGraph({ rankdir: 'TB', nodesep: 100, ranksep: 150, marginx: 60, marginy: 60 })
 
   for (const node of nodes) {
     const w = node.data?.isCluster ? CLUSTER_NODE_WIDTH : NODE_WIDTH

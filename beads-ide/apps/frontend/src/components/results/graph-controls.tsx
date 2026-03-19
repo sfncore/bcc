@@ -43,7 +43,7 @@ export const DEFAULT_SIMPLIFICATION_STATE: GraphSimplificationState = {
   semanticZoom: true,
   fisheyeMode: false,
   selectedNodeId: null,
-  layout: 'force-directed',
+  layout: 'hierarchical',
   metricOverlay: 'none',
 }
 
