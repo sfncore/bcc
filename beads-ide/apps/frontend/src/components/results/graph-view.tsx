@@ -117,8 +117,8 @@ const FISHEYE_RADIUS = 200 // Radius of fisheye effect in pixels
 const FISHEYE_DISTORTION = 3 // Distortion strength (higher = more magnification)
 
 // Node style constants
-const NODE_WIDTH = 180
-const NODE_HEIGHT = 60
+const NODE_WIDTH = 240
+const NODE_HEIGHT = 80
 const CLUSTER_NODE_WIDTH = 200
 const CLUSTER_NODE_HEIGHT = 80
 
@@ -223,14 +223,16 @@ function BeadNode({ data }: { data: BeadData }) {
         </div>
         <div
           style={{
-            fontSize: isCircle ? '10px' : '12px',
+            fontSize: isCircle ? '10px' : '13px',
             color: '#ccc',
             fontWeight: 500,
             overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            display: '-webkit-box',
+            WebkitLineClamp: isCircle ? 1 : 2,
+            WebkitBoxOrient: 'vertical',
             textAlign: isCircle ? 'center' : 'left',
             maxWidth: isCircle ? NODE_HEIGHT - 20 : NODE_WIDTH - 24,
+            lineHeight: '1.3',
             ...(isBug ? { transform: 'rotate(-45deg)' } : {}),
           }}
         >
@@ -583,7 +585,7 @@ function applyHierarchicalLayout(nodes: Node<NodeData>[], edges: Edge[]): Node<N
 
   const g = new dagre.graphlib.Graph()
   g.setDefaultEdgeLabel(() => ({}))
-  g.setGraph({ rankdir: 'TB', nodesep: 60, ranksep: 100, marginx: 50, marginy: 50 })
+  g.setGraph({ rankdir: 'TB', nodesep: 80, ranksep: 120, marginx: 50, marginy: 50 })
 
   for (const node of nodes) {
     const w = node.data?.isCluster ? CLUSTER_NODE_WIDTH : NODE_WIDTH
