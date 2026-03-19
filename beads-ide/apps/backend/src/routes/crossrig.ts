@@ -311,8 +311,14 @@ const crossrig = new Hono()
             continue
           }
 
-          // Fetch issues
-          let issuesSql = 'SELECT id, title, status, issue_type, priority, labels FROM issues'
+          // Fetch issues — not all rigs have labels column on issues table
+          let issuesCols = 'id, title, status, issue_type, priority, labels'
+          try {
+            await conn.query(`SELECT labels FROM issues LIMIT 0`)
+          } catch {
+            issuesCols = 'id, title, status, issue_type, priority'
+          }
+          let issuesSql = `SELECT ${issuesCols} FROM issues`
           if (excludeNoise) {
             issuesSql += " WHERE id NOT LIKE '%-mol-%' AND id NOT LIKE '%-wisp-%'"
           }
@@ -439,16 +445,27 @@ const crossrig = new Hono()
         try {
           conn = await getConnection(db)
           if (!(await hasTable(conn, 'issues'))) {
+            console.log(`[convoy-graph] No issues table in ${db}`)
             await conn.end()
             continue
           }
 
-          // Fetch issues by ID
+          // Fetch issues by ID — not all rigs have labels column on issues table
           const placeholders = ids.map(() => '?').join(',')
-          const [issueRows] = await conn.query(
-            `SELECT id, title, status, issue_type, priority, labels FROM issues WHERE id IN (${placeholders})`,
-            ids,
-          )
+          let issueRows: any[]
+          try {
+            const [rows] = await conn.query(
+              `SELECT id, title, status, issue_type, priority, labels FROM issues WHERE id IN (${placeholders})`,
+              ids,
+            )
+            issueRows = rows as any[]
+          } catch {
+            const [rows] = await conn.query(
+              `SELECT id, title, status, issue_type, priority FROM issues WHERE id IN (${placeholders})`,
+              ids,
+            )
+            issueRows = rows as any[]
+          }
 
           for (const issue of issueRows as any[]) {
             nodes.push({
