@@ -291,6 +291,79 @@ const crossrig = new Hono()
     }
   })
 
+  .get('/crossrig/graph', async (c) => {
+    const query = c.req.query()
+    const rigsFilter = query.rigs?.split(',')
+    const excludeNoise = query.exclude_noise === 'true'
+
+    try {
+      const databases = await getRigDatabases(rigsFilter)
+      const nodes: any[] = []
+      const edges: any[] = []
+      const rigStats: Record<string, number> = {}
+
+      for (const db of databases) {
+        let conn: mysql.Connection | null = null
+        try {
+          conn = await getConnection(db)
+          if (!(await hasTable(conn, 'issues'))) {
+            await conn.end()
+            continue
+          }
+
+          // Fetch issues
+          let issuesSql = 'SELECT id, title, status, issue_type, priority, labels FROM issues'
+          if (excludeNoise) {
+            issuesSql += " WHERE id NOT LIKE '%-mol-%' AND id NOT LIKE '%-wisp-%'"
+          }
+          const [issueRows] = await conn.query(issuesSql)
+          const issues = issueRows as any[]
+
+          for (const issue of issues) {
+            nodes.push({
+              id: issue.id,
+              title: issue.title,
+              status: issue.status,
+              type: issue.issue_type,
+              priority: issue.priority,
+              labels: issue.labels ? (typeof issue.labels === 'string' ? JSON.parse(issue.labels) : issue.labels) : [],
+              _rig_db: db,
+            })
+          }
+          rigStats[db] = issues.length
+
+          // Fetch dependencies
+          if (await hasTable(conn, 'dependencies')) {
+            const [depRows] = await conn.query('SELECT issue_id, depends_on_id, type FROM dependencies')
+            for (const dep of depRows as any[]) {
+              edges.push({
+                from: dep.depends_on_id,
+                to: dep.issue_id,
+                type: dep.type,
+                _rig_db: db,
+              })
+            }
+          }
+
+          await conn.end()
+        } catch {
+          if (conn) await conn.end().catch(() => {})
+        }
+      }
+
+      return c.json({
+        nodes,
+        edges,
+        nodeCount: nodes.length,
+        edgeCount: edges.length,
+        rigs: rigStats,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      return c.json({ error: 'Cross-rig graph query failed', code: 'CROSSRIG_ERROR', details: message }, 500)
+    }
+  })
+
   .get('/crossrig/databases', async (c) => {
     try {
       const databases = await getRigDatabases()

@@ -2,7 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import type { BeadFull } from "@beads-ide/shared";
 import { type CSSProperties, useCallback, useMemo, useState } from "react";
 import { useCrossRigBeads } from "../hooks/use-crossrig-beads";
+import { useCrossRigGraph, getRigColor } from "../hooks/use-crossrig-graph";
 import { BeadStatusBadge } from "../components/beads/bead-status-badge";
+import { GraphView } from "../components/results/graph-view";
 import { useBeadSelection } from "../contexts";
 
 export const Route = createFileRoute("/crossrig")({
@@ -28,6 +30,7 @@ function emptyFilters(): CrossRigFilterState {
 }
 
 type GroupMode = "none" | "rig" | "type" | "status";
+type ViewMode = "list" | "graph";
 
 // --- Styles ---
 
@@ -153,18 +156,55 @@ const searchStyle: CSSProperties = {
   width: "200px",
 };
 
+const viewToggleBtnStyle = (active: boolean): CSSProperties => ({
+  padding: "4px 12px",
+  fontSize: "11px",
+  fontWeight: 500,
+  border: "none",
+  borderRadius: "4px",
+  cursor: "pointer",
+  backgroundColor: active ? "#007acc" : "#3c3c3c",
+  color: active ? "#fff" : "#ccc",
+});
+
+const graphContainerStyle: CSSProperties = {
+  flex: 1,
+  position: "relative",
+  overflow: "hidden",
+};
+
+const rigLegendStyle: CSSProperties = {
+  position: "absolute",
+  bottom: "10px",
+  left: "10px",
+  zIndex: 10,
+  backgroundColor: "rgba(30, 30, 30, 0.9)",
+  border: "1px solid #3c3c3c",
+  borderRadius: "6px",
+  padding: "8px 12px",
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+  maxWidth: "400px",
+};
+
 // --- Component ---
 
 function CrossRigPage() {
   const { selectBead } = useBeadSelection();
   const [filters, setFilters] = useState<CrossRigFilterState>(emptyFilters);
   const [groupMode, setGroupMode] = useState<GroupMode>("rig");
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [searchText, setSearchText] = useState("");
   const [excludeNoise, setExcludeNoise] = useState(true);
 
   const { beads, count, rigStats, isLoading, error, refresh } = useCrossRigBeads({
     exclude_noise: excludeNoise,
     search: searchText || undefined,
+  });
+
+  const { graph, isLoading: graphLoading, error: graphError, refresh: refreshGraph } = useCrossRigGraph({
+    exclude_noise: excludeNoise,
   });
 
   // Client-side filtering
@@ -229,169 +269,232 @@ function CrossRigPage() {
     filters.priorities.size > 0 ||
     filters.rigs.size > 0;
 
+  // Rig list for legend
+  const graphRigs = useMemo(() => {
+    if (!graph) return [];
+    return Object.keys(graph.rigs).sort();
+  }, [graph]);
+
   return (
     <div style={containerStyle}>
       {/* Header */}
       <div style={headerStyle}>
         <h2 style={{ margin: 0, fontSize: "16px" }}>Cross-Rig Beads</h2>
-        <input
-          type="text"
-          placeholder="Search titles..."
-          style={searchStyle}
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-        />
-        <label style={{ fontSize: "11px", color: "#888", display: "flex", alignItems: "center", gap: "4px" }}>
-          <input
-            type="checkbox"
-            checked={excludeNoise}
-            onChange={(e) => setExcludeNoise(e.target.checked)}
-          />
-          Hide noise
-        </label>
-        <select
-          style={selectStyle}
-          value={groupMode}
-          onChange={(e) => setGroupMode(e.target.value as GroupMode)}
-        >
-          <option value="none">No grouping</option>
-          <option value="rig">Group by Rig</option>
-          <option value="type">Group by Type</option>
-          <option value="status">Group by Status</option>
-        </select>
+
+        {/* View mode toggle */}
+        <div style={{ display: "flex", gap: "2px", marginLeft: "8px" }}>
+          <button
+            type="button"
+            style={viewToggleBtnStyle(viewMode === "list")}
+            onClick={() => setViewMode("list")}
+          >
+            List
+          </button>
+          <button
+            type="button"
+            style={viewToggleBtnStyle(viewMode === "graph")}
+            onClick={() => setViewMode("graph")}
+          >
+            Graph
+          </button>
+        </div>
+
+        {viewMode === "list" && (
+          <>
+            <input
+              type="text"
+              placeholder="Search titles..."
+              style={searchStyle}
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+            />
+            <label style={{ fontSize: "11px", color: "#888", display: "flex", alignItems: "center", gap: "4px" }}>
+              <input
+                type="checkbox"
+                checked={excludeNoise}
+                onChange={(e) => setExcludeNoise(e.target.checked)}
+              />
+              Hide noise
+            </label>
+            <select
+              style={selectStyle}
+              value={groupMode}
+              onChange={(e) => setGroupMode(e.target.value as GroupMode)}
+            >
+              <option value="none">No grouping</option>
+              <option value="rig">Group by Rig</option>
+              <option value="type">Group by Type</option>
+              <option value="status">Group by Status</option>
+            </select>
+          </>
+        )}
+
         <button
           type="button"
-          onClick={refresh}
+          onClick={viewMode === "graph" ? refreshGraph : refresh}
           style={{ ...chipStyle(false), cursor: "pointer" }}
         >
           Refresh
         </button>
       </div>
 
-      {/* Rig filter - own row */}
-      {facets.rigs.size > 0 && (
-        <div style={{ ...filterPanelStyle, borderBottom: "none", paddingBottom: "4px" }}>
-          <div style={sectionStyle}>
-            <span style={sectionLabelStyle}>Rigs</span>
-            <div style={chipContainerStyle}>
-              {[...facets.rigs].sort().map((rig) => (
-                <button
-                  key={rig}
-                  type="button"
-                  style={chipStyle(filters.rigs.has(rig))}
-                  onClick={() => toggle("rigs", rig)}
-                >
-                  {rig}
-                </button>
-              ))}
+      {viewMode === "list" && (
+        <>
+          {/* Rig filter - own row */}
+          {facets.rigs.size > 0 && (
+            <div style={{ ...filterPanelStyle, borderBottom: "none", paddingBottom: "4px" }}>
+              <div style={sectionStyle}>
+                <span style={sectionLabelStyle}>Rigs</span>
+                <div style={chipContainerStyle}>
+                  {[...facets.rigs].sort().map((rig) => (
+                    <button
+                      key={rig}
+                      type="button"
+                      style={chipStyle(filters.rigs.has(rig))}
+                      onClick={() => toggle("rigs", rig)}
+                    >
+                      {rig}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
+          )}
+
+          {/* Other filter chips */}
+          <div style={filterPanelStyle}>
+            <div style={sectionStyle}>
+              <span style={sectionLabelStyle}>Status</span>
+              <div style={chipContainerStyle}>
+                {[...facets.statuses].sort().map((s) => (
+                  <button key={s} type="button" style={chipStyle(filters.statuses.has(s))} onClick={() => toggle("statuses", s)}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={sectionStyle}>
+              <span style={sectionLabelStyle}>Type</span>
+              <div style={chipContainerStyle}>
+                {[...facets.types].sort().map((t) => (
+                  <button key={t} type="button" style={chipStyle(filters.types.has(t))} onClick={() => toggle("types", t)}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={sectionStyle}>
+              <span style={sectionLabelStyle}>Priority</span>
+              <div style={chipContainerStyle}>
+                {[...facets.priorities].sort().map((p) => (
+                  <button key={p} type="button" style={chipStyle(filters.priorities.has(p))} onClick={() => toggle("priorities", p)}>
+                    P{p}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                style={{ ...chipStyle(false), borderColor: "#ef4444", color: "#ef4444" }}
+                onClick={() => setFilters(emptyFilters())}
+              >
+                Clear all
+              </button>
+            )}
           </div>
-        </div>
+
+          {/* Count bar */}
+          <div style={countBarStyle}>
+            {filteredBeads.length} of {count} beads
+            {Object.keys(rigStats).length > 0 && ` across ${Object.keys(rigStats).length} rigs`}
+            {isLoading && " (loading...)"}
+            {error && ` — Error: ${error.message}`}
+          </div>
+
+          {/* Bead list */}
+          <div style={listStyle}>
+            {[...groups.entries()].map(([groupName, groupBeads]) => (
+              <div key={groupName}>
+                {groupMode !== "none" && (
+                  <div style={groupHeaderStyle}>
+                    {groupName} ({groupBeads.length})
+                  </div>
+                )}
+                {groupBeads.map((bead: any) => (
+                  <div key={bead.id} style={rowStyle} onClick={() => selectBead(bead.id)}>
+                    <span style={rigBadgeStyle}>{bead._rig_db}</span>
+                    <BeadStatusBadge status={bead.status} />
+                    <span style={{ fontSize: "10px", color: "#666", minWidth: "32px" }}>
+                      P{bead.priority}
+                    </span>
+                    <span style={{ fontSize: "10px", color: "#888", minWidth: "50px" }}>
+                      {bead.issue_type}
+                    </span>
+                    <span style={{ color: "#ccc", fontSize: "12px", fontFamily: "monospace", minWidth: "80px" }}>
+                      {bead.id}
+                    </span>
+                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {bead.title}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
-      {/* Other filter chips */}
-      <div style={filterPanelStyle}>
-        {/* Statuses */}
-        <div style={sectionStyle}>
-          <span style={sectionLabelStyle}>Status</span>
-          <div style={chipContainerStyle}>
-            {[...facets.statuses].sort().map((s) => (
-              <button
-                key={s}
-                type="button"
-                style={chipStyle(filters.statuses.has(s))}
-                onClick={() => toggle("statuses", s)}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
+      {viewMode === "graph" && (
+        <div style={graphContainerStyle}>
+          {graphLoading && (
+            <div style={{ padding: "16px", color: "#888" }}>Loading graph data...</div>
+          )}
+          {graphError && (
+            <div style={{ padding: "16px", color: "#f14c4c" }}>Error: {graphError.message}</div>
+          )}
+          {graph && !graphLoading && (
+            <>
+              <GraphView
+                nodes={graph.nodes}
+                edges={graph.edges}
+                density={graph.density}
+                onBeadClick={(id) => selectBead(id)}
+              />
+              {/* Rig color legend */}
+              {graphRigs.length > 0 && (
+                <div style={rigLegendStyle}>
+                  <span style={{ fontSize: "10px", color: "#888", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                    Rigs:
+                  </span>
+                  {graphRigs.map((rig) => (
+                    <span
+                      key={rig}
+                      style={{
+                        fontSize: "11px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: "8px",
+                          height: "8px",
+                          borderRadius: "2px",
+                          backgroundColor: getRigColor(rig),
+                        }}
+                      />
+                      <span style={{ color: "#ccc" }}>{rig}</span>
+                      <span style={{ color: "#666" }}>({graph.rigs[rig]})</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
-
-        {/* Types */}
-        <div style={sectionStyle}>
-          <span style={sectionLabelStyle}>Type</span>
-          <div style={chipContainerStyle}>
-            {[...facets.types].sort().map((t) => (
-              <button
-                key={t}
-                type="button"
-                style={chipStyle(filters.types.has(t))}
-                onClick={() => toggle("types", t)}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Priorities */}
-        <div style={sectionStyle}>
-          <span style={sectionLabelStyle}>Priority</span>
-          <div style={chipContainerStyle}>
-            {[...facets.priorities].sort().map((p) => (
-              <button
-                key={p}
-                type="button"
-                style={chipStyle(filters.priorities.has(p))}
-                onClick={() => toggle("priorities", p)}
-              >
-                P{p}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Clear */}
-        {hasActiveFilters && (
-          <button
-            type="button"
-            style={{ ...chipStyle(false), borderColor: "#ef4444", color: "#ef4444" }}
-            onClick={() => setFilters(emptyFilters())}
-          >
-            Clear all
-          </button>
-        )}
-      </div>
-
-      {/* Count bar */}
-      <div style={countBarStyle}>
-        {filteredBeads.length} of {count} beads
-        {Object.keys(rigStats).length > 0 && ` across ${Object.keys(rigStats).length} rigs`}
-        {isLoading && " (loading...)"}
-        {error && ` — Error: ${error.message}`}
-      </div>
-
-      {/* Bead list */}
-      <div style={listStyle}>
-        {[...groups.entries()].map(([groupName, groupBeads]) => (
-          <div key={groupName}>
-            {groupMode !== "none" && (
-              <div style={groupHeaderStyle}>
-                {groupName} ({groupBeads.length})
-              </div>
-            )}
-            {groupBeads.map((bead: any) => (
-              <div key={bead.id} style={rowStyle} onClick={() => selectBead(bead.id)}>
-                <span style={rigBadgeStyle}>{bead._rig_db}</span>
-                <BeadStatusBadge status={bead.status} />
-                <span style={{ fontSize: "10px", color: "#666", minWidth: "32px" }}>
-                  P{bead.priority}
-                </span>
-                <span style={{ fontSize: "10px", color: "#888", minWidth: "50px" }}>
-                  {bead.issue_type}
-                </span>
-                <span style={{ color: "#ccc", fontSize: "12px", fontFamily: "monospace", minWidth: "80px" }}>
-                  {bead.id}
-                </span>
-                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {bead.title}
-                </span>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
+      )}
     </div>
   );
 }
