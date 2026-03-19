@@ -1,5 +1,5 @@
 import type { CookResult, PourResult, ProtoBead, SlingRequest } from '@beads-ide/shared'
-import { toMermaid, type MermaidNode, type MermaidEdge } from '@beads-ide/shared'
+import { toFormulaMermaid } from '@beads-ide/shared'
 /**
  * Formula editor route with text/visual view toggle and sling workflow.
  * Displays formula TOML in text mode or as a DAG in visual mode.
@@ -810,30 +810,11 @@ function FormulaPage() {
   )
 }
 
-/** Convert CookResult to Mermaid and render via FrankenMermaid WASM */
+/** Convert CookResult to rich Mermaid diagram via FrankenMermaid WASM */
 function FormulaMermaidView({ result }: { result: CookResult | null }) {
   const mermaid = useMemo(() => {
     if (!result?.ok || !result.steps) return null
-
-    const nodes: MermaidNode[] = []
-    const edges: MermaidEdge[] = []
-
-    for (const [stepId, step] of Object.entries(result.steps)) {
-      nodes.push({
-        id: stepId,
-        title: (step as any).title ?? stepId,
-        type: (step as any).type ?? 'task',
-      })
-
-      const deps = (step as any).depends_on ?? (step as any).blocking ?? []
-      if (Array.isArray(deps)) {
-        for (const dep of deps) {
-          edges.push({ from: dep, to: stepId, type: 'blocks' })
-        }
-      }
-    }
-
-    return toMermaid(nodes, edges, { direction: 'TD', showWaves: false })
+    return toFormulaMermaid(result)
   }, [result])
 
   if (!mermaid) {

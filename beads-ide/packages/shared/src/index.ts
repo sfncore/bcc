@@ -140,3 +140,9 @@ export {
   type MermaidEdge,
   type ToMermaidOptions,
 } from './to-mermaid.js'
+
+// Formula-specific Mermaid export
+export {
+  toFormulaMermaid,
+  type FormulaToMermaidOptions,
+} from './to-formula-mermaid.js'
