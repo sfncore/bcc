@@ -21,3 +21,7 @@
 .beads/locks/
 .beads/.sync.lock
 .beads/sync_base.jsonl
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
