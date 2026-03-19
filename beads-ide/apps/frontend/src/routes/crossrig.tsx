@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type { BeadFull } from "@beads-ide/shared";
-import { type CSSProperties, useCallback, useMemo, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import { useCrossRigBeads } from "../hooks/use-crossrig-beads";
 import { useCrossRigGraph, getRigColor } from "../hooks/use-crossrig-graph";
 import { useConvoyGraph } from "../hooks/use-convoy-graph";
 import { BeadStatusBadge } from "../components/beads/bead-status-badge";
 import { GraphView } from "../components/results/graph-view";
+import { api } from "../lib/rpc";
 import { useBeadSelection } from "../contexts";
 
 export const Route = createFileRoute("/crossrig")({
@@ -224,6 +225,33 @@ function CrossRigPage() {
   });
 
   const { graph: convoyGraph, isLoading: convoyLoading, error: convoyError, refresh: refreshConvoy } = useConvoyGraph(selectedConvoyId);
+
+  // Fetch convoy summaries for enriching list rows
+  const [convoySummaries, setConvoySummaries] = useState<Map<string, { tracked: number; rigs: string[] }>>(new Map());
+  useEffect(() => {
+    api.crossrig.convoys.$get({}).then(async (res) => {
+      if (!res.ok) return;
+      const data = await res.json() as any;
+      const map = new Map<string, { tracked: number; rigs: string[] }>();
+      for (const c of data.convoys ?? []) {
+        const tracked = c.tracked_beads?.length ?? 0;
+        const rigSet = new Set<string>();
+        for (const tb of c.tracked_beads ?? []) {
+          const id = tb.id as string;
+          // Extract rig from bead ID prefix or external format
+          if (id.startsWith('external:')) {
+            const parts = id.split(':');
+            if (parts.length >= 2) rigSet.add(parts[1]);
+          } else {
+            const dash = id.indexOf('-');
+            if (dash > 0) rigSet.add(id.slice(0, dash));
+          }
+        }
+        map.set(c.id, { tracked, rigs: [...rigSet] });
+      }
+      setConvoySummaries(map);
+    }).catch(() => {});
+  }, []);
 
   // Handle bead click — drill into convoys, open detail for others
   const handleBeadClick = useCallback((bead: any) => {
@@ -465,24 +493,53 @@ function CrossRigPage() {
                     {groupName} ({groupBeads.length})
                   </div>
                 )}
-                {groupBeads.map((bead: any) => (
-                  <div key={bead.id} style={rowStyle} onClick={() => handleBeadClick(bead)}>
-                    <span style={rigBadgeStyle}>{bead._rig_db}</span>
-                    <BeadStatusBadge status={bead.status} />
-                    <span style={{ fontSize: "10px", color: "#666", minWidth: "32px" }}>
-                      P{bead.priority}
-                    </span>
-                    <span style={{ fontSize: "10px", color: "#888", minWidth: "50px" }}>
-                      {bead.issue_type}
-                    </span>
-                    <span style={{ color: "#ccc", fontSize: "12px", fontFamily: "monospace", minWidth: "80px" }}>
-                      {bead.id}
-                    </span>
-                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {bead.title}
-                    </span>
-                  </div>
-                ))}
+                {groupBeads.map((bead: any) => {
+                  const isConvoy = bead.issue_type === "convoy";
+                  const isEpic = bead.issue_type === "epic";
+                  const summary = isConvoy ? convoySummaries.get(bead.id) : undefined;
+
+                  return (
+                    <div
+                      key={bead.id}
+                      style={{
+                        ...rowStyle,
+                        ...(isConvoy ? { backgroundColor: "#1a2332", borderLeft: "3px solid #3b82f6" } : {}),
+                        ...(isEpic ? { backgroundColor: "#1a2320", borderLeft: "3px solid #22c55e" } : {}),
+                      }}
+                      onClick={() => handleBeadClick(bead)}
+                    >
+                      <span style={rigBadgeStyle}>{bead._rig_db}</span>
+                      <BeadStatusBadge status={bead.status} />
+                      <span style={{ fontSize: "10px", color: "#666", minWidth: "32px" }}>
+                        P{bead.priority}
+                      </span>
+                      <span style={{
+                        fontSize: "10px",
+                        color: isConvoy ? "#60a5fa" : isEpic ? "#4ade80" : "#888",
+                        minWidth: "50px",
+                        fontWeight: (isConvoy || isEpic) ? 600 : 400,
+                      }}>
+                        {bead.issue_type}
+                      </span>
+                      <span style={{ color: "#ccc", fontSize: "12px", fontFamily: "monospace", minWidth: "80px" }}>
+                        {bead.id}
+                      </span>
+                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {bead.title}
+                      </span>
+                      {isConvoy && summary && (
+                        <span style={{ display: "flex", gap: "8px", fontSize: "10px", flexShrink: 0 }}>
+                          <span style={{ color: "#60a5fa" }}>{summary.tracked} beads</span>
+                          <span style={{ color: "#888" }}>{summary.rigs.length} rig{summary.rigs.length !== 1 ? "s" : ""}</span>
+                          <span style={{ color: "#4fc1ff", cursor: "pointer" }}>View →</span>
+                        </span>
+                      )}
+                      {isConvoy && !summary && (
+                        <span style={{ fontSize: "10px", color: "#4fc1ff", flexShrink: 0 }}>View →</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </div>
